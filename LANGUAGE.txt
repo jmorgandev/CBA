@@ -1,0 +1,149 @@
+========== Mnemonic List ==========
+Notes: 
+	- Vx / Vy refer to V registers between V0 - VF.
+	- N refers to a hex nibble.
+	- NN refers to a hex byte.
+	- NNN refers to a raw address.
+
+	- All V registers are read-writable.
+	- V0 is the accumulator.
+	- VF is the flag.
+	- DT decrements at 60Hz.
+	- ST also decrements at 60Hz, but is write-only.
+__________________________________
+Name:   CLS
+Desc:   Clear the display buffer.
+Opcode: 00E0
+__________________________________
+Name:   RET
+Desc:   Return from a subroutine.
+Opcode: 00EE
+__________________________________
+Name:   JP <label>
+Desc:   Jump to label address.
+Opcode: 1nnn
+__________________________________
+Name:   CALL <label>
+Desc:   Call subroutine at label address.
+Opcode: 2nnn
+__________________________________
+Name:   SE <Vx> <NN>
+Desc:   Skip next instruction if Vx == NN.
+Opcode: 3xnn
+__________________________________
+Name:   SNE <Vx> <NN>
+Desc:   Skip next instruction if Vx != NN.
+Opcode: 4xnn
+__________________________________
+Name:   SE <Vx> <Vy>
+Desc:   Skip next instruction if Vx == Vy.
+Opcode: 5xy0
+__________________________________
+Name:   LD <Vx> <NN>
+Desc:   Load NN into register Vx.
+Opcode: 6xnn
+__________________________________
+Name:   ADD <Vx> <NN>
+Desc:   Sets Vx equal to the result	of Vx + NN.
+Opcode: 7xnn
+__________________________________
+Name:   LD <Vx> <Vy>
+Desc:   Load value of Vy into Vx.
+Opcode: 8xy0
+__________________________________
+Name:   OR <Vx> <Vy>
+Desc:   Sets Vx equal to the result of Vx OR Vy.
+Opcode: 8xy1
+__________________________________
+Name:   AND <Vx> <Vy>
+Desc:   Sets Vx equal to the result	of Vx AND Vy.
+Opcode: 8xy2
+__________________________________
+Name:   XOR <Vx> <Vy>
+Desc:   Sets Vx equal to the result of Vx XOR Vy.
+Opcode: 8xy3
+__________________________________
+Name:   ADD <Vx> <Vy>
+Desc:   Sets Vx equal to the result	of Vx + Vy.
+		Sets VF to 1 if a carry occurred, otherwise VF is set to 0.
+Opcode: 8xy4
+__________________________________
+Name:   SUB <Vx> <Vy>
+Desc:   Sets Vx equal to the result	of Vx - Vy.
+		Sets VF to 1 if no borrow occurred, otherwise VF is set to 0.
+Opcode: 8xy5
+__________________________________
+Name:   SHR <Vx>
+Desc:   Right bit-shift the value in Vx.
+		Sets VF to 1 if the lsb of Vx was 1, otherwise VF is set to 0.
+Opcode: 8xx6
+__________________________________
+Name:   SUBN <Vx> <Vy>
+Desc:   Sets Vx equal to the result of Vy - Vx.
+		Sets VF to 1 if no borrow occurred, otherwise VF is set to 0.
+Opcode: 8xy7
+__________________________________
+Name:   SHL <Vx>
+Desc:   Left bit-shift the value in Vx.
+		Sets VF to 1 if the msb of Vx was 1, otherwise VF is set to 0.
+Opcode: 8xxE
+__________________________________
+Name:   SNE <Vx> <Vy>
+Desc:   Skip next instruction if Vx != Vy.
+Opcode: 9xy0
+__________________________________
+Name:   LD I <label>
+Desc:   Loads the address of label into I.
+Opcode: Annn
+__________________________________
+Name:   JP V0 <label>
+Desc:   Jump to label address + value of V0.
+Opcode: Bnnn
+__________________________________
+Name:   RND <Vx> <NN>
+Desc:   Set Vx to a random number within the range 0 to NN.
+Opcode: Cxnn
+__________________________________
+Name:   DRW <Vx> <Vy> <N>
+Desc:   Display N-byte sprite starting at the memory address in I.
+        Draw the sprite at coordinates (Vx, Vy).
+	    If the sprite is drawn over any existing pixels, set VF to 1, otherwise 0.
+Opcode: Dxyn
+__________________________________
+Name:   SKP <Vx>
+Desc:   Skip next instruction if key in Vx is pressed.
+Opcode: Ex9E
+__________________________________
+Name:   SKNP <Vx>
+Desc:   Skip next instruction if key in Vx is NOT pressed.
+Opcode: ExA1
+__________________________________
+Name:   LD <Vx> DT
+Desc:   Loads the value of DT into Vx.
+Opcode: Fx07
+__________________________________
+Name:   WKP <Vx>
+Desc:   Halt execution until a key is pressed.
+		Store the value of the key press in Vx.
+Opcode: Fx0A
+__________________________________
+Name:   LD DT <Vx>
+Desc:   Loads the value of Vx into DT.
+Opcode: Fx15
+__________________________________
+Name:   LD ST <Vx>
+Desc:   Loads the value of Vx into ST.
+Opcode: Fx18
+__________________________________
+Name:   ADD I <Vx>
+Desc:   Set I to the result of I + Vx.
+Opcode: Fx1E
+__________________________________
+Name:   LD I <Vx>
+Desc:   Store registers V0 through Vx in memory starting at location I.
+Opcode: Fx55
+__________________________________
+Name:   LD <Vx> I
+Desc:   Read registers V0 through Vx in memory starting at location I.
+Opcode: Fx65
+__________________________________
