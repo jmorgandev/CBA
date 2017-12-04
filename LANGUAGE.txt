@@ -1,12 +1,12 @@
 ========== Mnemonic List ==========
 Notes: 
 	- Vx / Vy refer to V registers between V0 - VF.
-	- N refers to a hex nibble.
-	- NN refers to a hex byte.
-	- NNN refers to a raw address.
+	- N refers to a 4-bit hex literal.
+	- NN refers to an 8-bit hex literal.
+	- NNN refers to a 12-bit hex address.
 
 	- All V registers are read-writable.
-	- V0 is the accumulator.
+	- V0 is the accumulator (Not literally but some instructions specifically require use of V0).
 	- VF is the flag.
 	- DT decrements at 60Hz.
 	- ST also decrements at 60Hz, but is write-only.
@@ -44,7 +44,7 @@ Desc:   Load NN into register Vx.
 Opcode: 6xnn
 __________________________________
 Name:   ADD <Vx> <NN>
-Desc:   Sets Vx equal to the result	of Vx + NN.
+Desc:   Sets Vx equal to the result of Vx + NN.
 Opcode: 7xnn
 __________________________________
 Name:   LD <Vx> <Vy>
@@ -56,7 +56,7 @@ Desc:   Sets Vx equal to the result of Vx OR Vy.
 Opcode: 8xy1
 __________________________________
 Name:   AND <Vx> <Vy>
-Desc:   Sets Vx equal to the result	of Vx AND Vy.
+Desc:   Sets Vx equal to the result of Vx AND Vy.
 Opcode: 8xy2
 __________________________________
 Name:   XOR <Vx> <Vy>
@@ -64,28 +64,28 @@ Desc:   Sets Vx equal to the result of Vx XOR Vy.
 Opcode: 8xy3
 __________________________________
 Name:   ADD <Vx> <Vy>
-Desc:   Sets Vx equal to the result	of Vx + Vy.
-		Sets VF to 1 if a carry occurred, otherwise VF is set to 0.
+Desc:   Sets Vx equal to the result of Vx + Vy.
+	Sets VF to 1 if a carry occurred, otherwise VF is set to 0.
 Opcode: 8xy4
 __________________________________
 Name:   SUB <Vx> <Vy>
-Desc:   Sets Vx equal to the result	of Vx - Vy.
-		Sets VF to 1 if no borrow occurred, otherwise VF is set to 0.
+Desc:   Sets Vx equal to the result of Vx - Vy.
+	Sets VF to 1 if no borrow occurred, otherwise VF is set to 0.
 Opcode: 8xy5
 __________________________________
 Name:   SHR <Vx>
 Desc:   Right bit-shift the value in Vx.
-		Sets VF to 1 if the lsb of Vx was 1, otherwise VF is set to 0.
+	Sets VF to 1 if the lsb of Vx was 1, otherwise VF is set to 0.
 Opcode: 8xx6
 __________________________________
 Name:   SUBN <Vx> <Vy>
 Desc:   Sets Vx equal to the result of Vy - Vx.
-		Sets VF to 1 if no borrow occurred, otherwise VF is set to 0.
+	Sets VF to 1 if no borrow occurred, otherwise VF is set to 0.
 Opcode: 8xy7
 __________________________________
 Name:   SHL <Vx>
 Desc:   Left bit-shift the value in Vx.
-		Sets VF to 1 if the msb of Vx was 1, otherwise VF is set to 0.
+	Sets VF to 1 if the msb of Vx was 1, otherwise VF is set to 0.
 Opcode: 8xxE
 __________________________________
 Name:   SNE <Vx> <Vy>
@@ -107,7 +107,7 @@ __________________________________
 Name:   DRW <Vx> <Vy> <N>
 Desc:   Display N-byte sprite starting at the memory address in I.
         Draw the sprite at coordinates (Vx, Vy).
-	    If the sprite is drawn over any existing pixels, set VF to 1, otherwise 0.
+	If the sprite is drawn over any existing pixels, set VF to 1, otherwise 0.
 Opcode: Dxyn
 __________________________________
 Name:   SKP <Vx>
@@ -124,7 +124,7 @@ Opcode: Fx07
 __________________________________
 Name:   WKP <Vx>
 Desc:   Halt execution until a key is pressed.
-		Store the value of the key press in Vx.
+	Store the value of the key press in Vx.
 Opcode: Fx0A
 __________________________________
 Name:   LD DT <Vx>
