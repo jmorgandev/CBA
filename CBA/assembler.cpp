@@ -6,9 +6,7 @@
 
 #define CHIP8_MEMSIZE 4096
 #define CHIP8_MEMSTART 512
-#define CHIP8_STACKSIZE 96
-#define CHIP8_DISPLAYSIZE 256
-#define MAX_ROMSIZE (CHIP8_MEMSIZE - CHIP8_DISPLAYSIZE - CHIP8_STACKSIZE - CHIP8_MEMSTART)
+#define MAX_ROMSIZE (CHIP8_MEMSIZE - CHIP8_MEMSTART)
 #define INSTRUCTION_SIZE 2
 #define LITERAL_SIZE 1
 
@@ -224,15 +222,15 @@ bool ASM_Build() {
 			std::string first = tokens[0];
 			if (Valid_Instruction(first)) {
 				instruction inst = instruction_map[first];
-				uint arg_count = tokens.size() - 1;
+				size_t arg_count = tokens.size() - 1;
 				if (arg_count < inst.min_args || arg_count > inst.max_args) {
 					if (inst.min_args == inst.max_args) {
 						Print_Error_Location(line_num, rom_index);
-						printf("\"%s\" takes exactly %i argument%c\n", first, (inst.min_args > 1) ? 's' : '\0');
+						printf("\"%s\" takes exactly %i argument%c\n", first.c_str(), inst.min_args, (inst.min_args > 1) ? 's' : '\0');
 					}
 					else {
 						Print_Error_Location(line_num, rom_index);
-						printf("\"%s\" takes between %i and %i argument%c\n", first, inst.min_args, inst.max_args, (inst.max_args > 1) ? 's' : '\0');
+						printf("\"%s\" takes between %i and %i argument%c\n", first.c_str(), inst.min_args, inst.max_args, (inst.max_args > 1) ? 's' : '\0');
 					}
 				}
 				else {
