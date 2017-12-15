@@ -1,11 +1,13 @@
-#ifndef CBA_TYPES_H
+#ifndef CBA_STDAFX
+#define CBA_STDAFX
 
-#define CBA_TYPES_H
 #include <vector>
 #include <string>
 #include <map>
 
 typedef unsigned char byte;
 typedef unsigned int uint;
-typedef void(*op_ptr)(std::vector<std::string>, byte*);
+typedef unsigned short word;
+
+
 #endif

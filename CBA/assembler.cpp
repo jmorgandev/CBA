@@ -2,7 +2,7 @@
 #include "instruction.h"
 #include <fstream>
 #include <algorithm>
-#include "types.h"
+#include "stdafx.h"
 
 #define CHIP8_MEMSIZE 4096
 #define CHIP8_MEMSTART 512
@@ -12,21 +12,18 @@
 
 #define ROM_EXTENSION ".c8"
 
-char rom_output[MAX_ROMSIZE];
-uint rom_index = 0;
-uint line_num  = 1;
+static char rom_output[MAX_ROMSIZE];
+static uint rom_index = 0;
+static uint line_num  = 1;
 uint error_count = 0;
 
-std::fstream source_file;
-std::fstream binary_file;
-std::string  bin_file_name;
+static std::fstream source_file;
+static std::fstream binary_file;
+static std::string  bin_file_name;
 
 std::map<std::string, short> labels;
 
-#define WRITE_SUCCESS 0x01
-#define WRITE_NOSPACE 0x02
-
-std::vector<std::string> Tokenize_Line(std::string line) {
+static std::vector<std::string> Tokenize_Line(std::string line) {
 	std::vector<std::string> result;
 	std::string token;
 	uint prev = 0;
@@ -118,24 +115,6 @@ byte Char_Hex(char c) {
 	return c - ((c <= '9') ? 48 : 87);
 }
 
-uint Write_Bytes(byte* output) {
-	if (rom_index + 2 > MAX_ROMSIZE) {
-		return WRITE_NOSPACE;
-	}
-	rom_output[rom_index] = output[0];
-	rom_output[rom_index + 1] = output[1];
-	rom_index += INSTRUCTION_SIZE;
-	return WRITE_SUCCESS;
-}
-uint Write_Byte(byte output) {
-	if (rom_index + 1 > MAX_ROMSIZE) {
-		return WRITE_NOSPACE;
-	}
-	rom_output[rom_index] = output;
-	rom_index += LITERAL_SIZE;
-	return WRITE_SUCCESS;
-}
-
 bool Label_Exists(std::string label) {
 	return (labels.find(label) != labels.end());
 }
@@ -149,12 +128,10 @@ bool Valid_Register_VX(std::string token) {
 	return (token[0] == 'v' && Valid_Hex(token[1]));
 }
 
-void Print_Error_Location(uint ln, uint addr) {
-	printf("Error at line %i (0x%X): ", ln, addr + CHIP8_MEMSTART);
+void Print_Error_Location() {
+	printf("Error at line %i (0x%X): ", line_num, rom_index + CHIP8_MEMSTART);
 	error_count += 1;
 }
-
-
 
 
 bool ASM_Begin(std::string path) {
@@ -183,7 +160,7 @@ void ASM_ProcessLabels() {
 		for (int i = 0; i < linefeed.size(); i++) {
 			if (linefeed[i] == ':') {
 				if (label_end != std::string::npos) {
-					Print_Error_Location(line_num, rom_index);
+					Print_Error_Location();
 					printf("Invalid label declaration \"%s\"\n", linefeed.substr(0, i).c_str());
 					return;
 				}
@@ -208,9 +185,6 @@ void ASM_ProcessLabels() {
 
 bool ASM_Build() {
 	std::string linefeed;
-	byte output[2];
-	bool single_byte = false;
-	bool do_output = false;
 	while (std::getline(source_file, linefeed)) {
 		if (linefeed.empty()) {
 			line_num++;
@@ -225,56 +199,38 @@ bool ASM_Build() {
 				size_t arg_count = tokens.size() - 1;
 				if (arg_count < inst.min_args || arg_count > inst.max_args) {
 					if (inst.min_args == inst.max_args) {
-						Print_Error_Location(line_num, rom_index);
+						Print_Error_Location();
 						printf("\"%s\" takes exactly %i argument%c\n", first.c_str(), inst.min_args, (inst.min_args > 1) ? 's' : '\0');
 					}
 					else {
-						Print_Error_Location(line_num, rom_index);
+						Print_Error_Location();
 						printf("\"%s\" takes between %i and %i argument%c\n", first.c_str(), inst.min_args, inst.max_args, (inst.max_args > 1) ? 's' : '\0');
 					}
 				}
 				else {
 					std::vector<std::string> args(tokens.begin() + 1, tokens.end());
-					inst.callback(args, output);
-					do_output = true;
+					inst.callback(args);
 				}
 			}
 			else if (Valid_BinaryLiteral(first) || Valid_HexLiteral(first)) {
 				if (tokens.size() == 1) {
-					op_rawbyte(first, output);
-					single_byte = true;
-					do_output = true;
+					op_rawbyte(first);
 				}
 				else {
-					Print_Error_Location(line_num, rom_index);
+					Print_Error_Location();
 					printf("Invalid literal declaration \"%s\"\n", tokens[1].c_str());
 				}
 			}
 			else {
-				Print_Error_Location(line_num, rom_index);
+				Print_Error_Location();
 				printf("Invalid instruction/literal \"%s\"\n", first.c_str());
 			}
 		}
-		if (do_output) {
-			if (single_byte) {
-				if (Write_Byte(output[0]) == WRITE_NOSPACE) {
-					Print_Error_Location(line_num, rom_index);
-					printf("Exceeds %i byte memory size\n", MAX_ROMSIZE);
-					return false;
-				}
-				single_byte = false;
-			}
-			else {
-				if (Write_Bytes(output) == WRITE_NOSPACE) {
-					Print_Error_Location(line_num, rom_index);
-					printf("Exceeds %i byte memory size\n", MAX_ROMSIZE);
-					return false;
-				}
-			}
-			do_output = false;
-		}
 		line_num++;
 	}
+
+	if (error_count > 0) return false;
+
 	binary_file.open(bin_file_name, std::fstream::in | std::fstream::binary | std::fstream::trunc);
 	if (!binary_file.is_open()) {
 		binary_file.open(bin_file_name, std::fstream::out | std::fstream::binary);
@@ -286,4 +242,25 @@ bool ASM_Build() {
 	binary_file.write(rom_output, rom_index);
 	printf("Wrote %i bytes to %s (%i bytes remaining)\n", rom_index, bin_file_name.c_str(), MAX_ROMSIZE - rom_index);
 	return true;
+}
+
+void Byte_Output(byte in) {
+	if (rom_index + 1 > MAX_ROMSIZE) {
+		Print_Error_Location();
+		printf("ROM space limit reached.\n");
+	}
+	else rom_output[rom_index++] = in;
+}
+void Word_Output(word in) {
+	Word_Output(in >> 8, in & 0x00FF);
+}
+void Word_Output(byte upper, byte lower) {
+	if (rom_index + 2 > MAX_ROMSIZE) {
+		Print_Error_Location();
+		printf("ROM space limit reached.\n");
+	}
+	else {
+		rom_output[rom_index++] = upper;
+		rom_output[rom_index++] = lower;
+	}
 }

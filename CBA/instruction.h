@@ -7,7 +7,9 @@ http://mattmik.com/files/chip8/mastering/chip8.html
 https://en.wikipedia.org/wiki/CHIP-8
 */
 
-#include "types.h"
+#include "stdafx.h"
+
+typedef void(*op_ptr)(std::vector<std::string>);
 
 struct instruction {
 	op_ptr callback;
@@ -15,7 +17,7 @@ struct instruction {
 	int max_args = 0;
 };
 
-#define Opcode(a) void op_##a(std::vector<std::string> args, byte* output)
+#define Opcode(a) void op_##a(std::vector<std::string> args)
 
 #define CBA_MNEMONICS \
 	X(cls,  0, 0)\
@@ -33,8 +35,8 @@ struct instruction {
 	X(shr,  1, 1)\
 	X(subn, 2, 2)\
 	X(shl,  1, 1)\
-	X(rnd,  2, 2)\
-	X(drw,  3, 3)\
+	X(rand,  2, 2)\
+	X(draw,  3, 3)\
 	X(skp,  1, 1)\
 	X(sknp, 1, 1)\
 	X(wkp,  1, 1)
@@ -42,7 +44,7 @@ struct instruction {
 #define X(a, x, y) Opcode(a);
 CBA_MNEMONICS
 #undef X
-void op_rawbyte(std::string token, byte* output);
+void op_rawbyte(std::string token);
 
 extern std::map<std::string, instruction> instruction_map;
 
