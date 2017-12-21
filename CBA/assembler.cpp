@@ -212,18 +212,9 @@ bool ASM_Build() {
 					inst.callback(args);
 				}
 			}
-			else if (Valid_BinaryLiteral(first) || Valid_HexLiteral(first)) {
-				if (tokens.size() == 1) {
-					op_rawbyte(first);
-				}
-				else {
-					Print_Error_Location();
-					printf("Invalid literal declaration \"%s\"\n", tokens[1].c_str());
-				}
-			}
 			else {
 				Print_Error_Location();
-				printf("Invalid instruction/literal \"%s\"\n", first.c_str());
+				printf("Invalid instruction \"%s\"\n", first.c_str());
 			}
 		}
 		line_num++;

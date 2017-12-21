@@ -19,7 +19,7 @@ struct instruction {
 
 #define Opcode(a) void op_##a(std::vector<std::string> args)
 
-#define CBA_MNEMONICS \
+#define BASIC_SYNTAX \
 	X(cls,  0, 0)\
 	X(ret,  0, 0)\
 	X(jp,   1, 2)\
@@ -35,16 +35,16 @@ struct instruction {
 	X(shr,  1, 1)\
 	X(subn, 2, 2)\
 	X(shl,  1, 1)\
-	X(rand,  2, 2)\
-	X(draw,  3, 3)\
+	X(rand, 2, 2)\
+	X(draw, 3, 3)\
 	X(skp,  1, 1)\
 	X(sknp, 1, 1)\
-	X(wkp,  1, 1)
+	X(wkp,  1, 1)\
+	X(db,   1, 1)
 
 #define X(a, x, y) Opcode(a);
-CBA_MNEMONICS
+BASIC_SYNTAX
 #undef X
-void op_rawbyte(std::string token);
 
 extern std::map<std::string, instruction> instruction_map;
 

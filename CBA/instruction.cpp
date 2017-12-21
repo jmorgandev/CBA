@@ -2,7 +2,7 @@
 #include "assembler.h"
 
 #define X(a, x, y) {#a , {op_##a, x, y}},
-std::map<std::string, instruction> instruction_map = { CBA_MNEMONICS };
+std::map<std::string, instruction> instruction_map = { BASIC_SYNTAX };
 #undef X
 
 Opcode(cls) {
@@ -390,7 +390,6 @@ Opcode(wkp) {
 	Word_Output(0xF0 | Char_Hex(args[0][1]), 0x0A);
 }
 
-void op_rawbyte(std::string token) {
-	/* Just write a raw byte to the ROM (Usually for sprites) */
-	Byte_Output(Token_Byte(token));
+Opcode(db) {
+	Byte_Output(Token_Byte(args[0]));
 }
