@@ -9,7 +9,26 @@ https://en.wikipedia.org/wiki/CHIP-8
 
 #include "stdafx.h"
 
-typedef void(*op_ptr)(std::vector<std::string>);
+#define TYPE_LITERAL  0x00
+#define TYPE_NIBBLE   0x01
+#define TYPE_REGISTER 0x02
+#define TYPE_ADDRESS  0x03
+
+enum RegisterValues {
+	V0, V1, V2, V3,
+	V4, V5, V6, V7,
+	V8, V9, VA, VB,
+	VC, VD, VE, VF,
+	I, DT, ST
+};
+
+struct token {
+	word value;
+	uint type;
+	char text[3];
+};
+
+typedef void(*op_ptr)(std::vector<token>);
 
 struct instruction {
 	op_ptr callback;
@@ -17,7 +36,7 @@ struct instruction {
 	int max_args = 0;
 };
 
-#define Opcode(a) void op_##a(std::vector<std::string> args)
+#define Opcode(a) void op_##a(std::vector<token> args)
 
 #define BASIC_SYNTAX \
 	X(cls,  0, 0)\
@@ -32,10 +51,10 @@ struct instruction {
 	X(xor,  2, 2)\
 	X(add,  2, 2)\
 	X(sub,  2, 2)\
-	X(shr,  1, 1)\
+	X(shr,  1, 2)\
 	X(subn, 2, 2)\
-	X(shl,  1, 1)\
-	X(rand, 2, 2)\
+	X(shl,  1, 2)\
+	X(rand, 1, 2)\
 	X(draw, 3, 3)\
 	X(skp,  1, 1)\
 	X(sknp, 1, 1)\

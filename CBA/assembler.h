@@ -4,9 +4,8 @@
 #include "stdafx.h"
 
 extern std::map<std::string, short> labels;
-extern uint error_count;
 
-void Print_Error_Location();
+void PrintLineNumber();
 
 bool Label_Exists(std::string label);
 bool Valid_Address(short addr);

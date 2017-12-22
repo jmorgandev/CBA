@@ -3,6 +3,7 @@
 #include <fstream>
 #include <algorithm>
 #include "stdafx.h"
+#include "error.h"
 
 #define CHIP8_MEMSIZE 4096
 #define CHIP8_MEMSTART 512
@@ -15,7 +16,6 @@
 static char rom_output[MAX_ROMSIZE];
 static uint rom_index = 0;
 static uint line_num  = 1;
-uint error_count = 0;
 
 static std::fstream source_file;
 static std::fstream binary_file;
@@ -128,9 +128,8 @@ bool Valid_Register_VX(std::string token) {
 	return (token[0] == 'v' && Valid_Hex(token[1]));
 }
 
-void Print_Error_Location() {
-	printf("Error at line %i (0x%X): ", line_num, rom_index + CHIP8_MEMSTART);
-	error_count += 1;
+void PrintLineNumber() {
+	printf("[Line %i (0x%X)] ", line_num, rom_index + CHIP8_MEMSTART);
 }
 
 

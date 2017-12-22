@@ -1,5 +1,17 @@
 #include "instruction.h"
 #include "assembler.h"
+#include "error.h"
+
+#define EnforceType(a, b) if(a.type != b) {Error_TypeMismatch(a.type,b); return;}
+
+#define EnforceRegister(a, b) if(a.value != b) {Error_NeedRegister(a.value,b); return;}
+#define EnforceRegisterV(a) if(a.value > VF) {Error_NeedRegisterV(a.value); return;}
+
+const char* type_names[] = {
+	"byte literal",
+	"register",
+	"address/label"
+};
 
 #define X(a, x, y) {#a , {op_##a, x, y}},
 std::map<std::string, instruction> instruction_map = { BASIC_SYNTAX };
@@ -16,306 +28,206 @@ Opcode(ret) {
 }
 
 Opcode(jp) {
-	uint nibble = 0;
-	std::string label;
-
+	EnforceType(args[0], TYPE_ADDRESS);
 	if (args.size() == 2) {
-		if (args[0] != "v0") {
-			Print_Error_Location();
-			printf("jp can only be used with register V0\n");
-			return;
-		}
+		EnforceType(args[1], TYPE_REGISTER);
+		EnforceRegister(args[1], V0);
 		/* Set the program counter to <label> address plus the value of V0 */
-		nibble = 0xB000;
-		label = args[1];
+		Word_Output(0xB000 | args[0].value);
 	}
 	else {
 		/* Set the program counter to the address of <label> */
-		nibble = 0x1000;
-		label = args[0];
+		Word_Output(0x1000 | args[0].value);
 	}
-	if (!Label_Exists(label)) {
-		Print_Error_Location();
-		printf("The label \"%s\" does not exist\n", label.c_str());
-		return;
-	}
-	if (!Valid_Address(labels[label])) {
-		Print_Error_Location();
-		printf("The address of label \"%s\" is invalid\n", label.c_str());
-		return;
-	}
-	short addr = labels[label];
-	Word_Output(nibble | addr);
 }
 
 Opcode(call) {
 	/* Put the current program counter address on the top of the stack and increment the stack pointer.
 	   The program counter is then set the subroutine at <label> */
-	std::string label = args[0];
-	if (!Label_Exists(label)) {
-		Print_Error_Location();
-		printf("The label \"%s\" does not exist\n", label.c_str());
-		return;
-	}
-	if (!Valid_Address(labels[label])) {
-		Print_Error_Location();
-		printf("The address of label \"%s\" is invalid\n", label.c_str());
-		return;
-	}
-	short addr = labels[label];
-	Word_Output(0x2000 | addr);
+	EnforceType(args[0], TYPE_ADDRESS);
+	Word_Output(0x2000 | args[0].value);
 }
 
 Opcode(se) {
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	byte x = Char_Hex(args[0][1]);
-	if (Valid_HexLiteral(args[1]) || Valid_BinaryLiteral(args[1])) {
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	byte x = args[0].value;
+	if (args[1].type == TYPE_LITERAL) {
 		/* Skip next instruction if Vx == <byte literal> */
-		Word_Output(0x30 | x, Token_Byte(args[1]));
+		Word_Output(0x30 | x, args[1].value);
 	}
-	else if (Valid_Register_VX(args[1])) {
-		/* Skip next instruction if Vx == Vy */
-		byte y = Char_Hex(args[1][1]);
+	else if (args[1].type == TYPE_REGISTER) {
+		EnforceRegisterV(args[1]);
+		byte y = args[1].value;
 		Word_Output(0x50 | x, y << 4);
 	}
-	else {
-		Print_Error_Location();
-		printf("Invalid V register/byte literal \"%s\"\n", args[1].c_str());
-	}
+	else Error_Log("Expected V register or byte literal as second argument.");
 }
 
 Opcode(sne) {
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	byte x = Char_Hex(args[0][1]);
-	if (Valid_HexLiteral(args[1]) || Valid_BinaryLiteral(args[1])) {
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	byte x = args[0].value;
+
+	if (args[1].type == TYPE_LITERAL) {
 		/* Skip next instruction if Vx != <byte literal> */
-		Word_Output(0x40 | x, Token_Byte(args[1]));
+		Word_Output(0x40 | x, args[1].value);
 	}
-	else if (Valid_Register_VX(args[1])) {
+	else if (args[1].type == TYPE_REGISTER) {
 		/* Skip next instruction if Vx != Vy */
-		byte y = Char_Hex(args[1][1]);
+		EnforceRegisterV(args[1]);
+		byte y = args[1].value;
 		Word_Output(0x90 | x, y << 4);
 	}
-	else {
-		Print_Error_Location();
-		printf("Invalid V register/byte literal \"%s\"\n", args[1].c_str());
-	}
+	else Error_Log("Expected V register or byte literal as second argument.");
 }
 
 Opcode(ld) {
-	if (!Valid_Register(args[0])) {
-		Print_Error_Location();
-		printf("Invalid register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (Valid_Register_VX(args[0])) {
-		uint x = Char_Hex(args[0][1]);
-		if (Valid_Register(args[1])) {
-			if (Valid_Register_VX(args[1])) {
+	EnforceType(args[0], TYPE_REGISTER);
+
+	if (args[0].value <= VF) {
+		uint x = args[0].value;
+		if (args[1].type == TYPE_REGISTER) {
+			if (args[1].value <= VF) {
 				/* Load the value of Vy into Vx */
-				byte y = Char_Hex(args[1][1]);
+				byte y = args[1].value;
 				Word_Output(0x80 | x, y << 4);
 			}
-			else if (args[1] == "dt") {
+			else if (args[1].value == DT) {
 				/* Load the value of DT into Vx */
 				Word_Output(0xF0 | x, 0x07);
 			}
-			else if (args[1] == "i") {
+			else if (args[1].value == I) {
 				/* Load into registers V0 to Vx values starting from memory address I*/
 				Word_Output(0xF0 | x, 0x65);
 			}
-			else if (args[1] == "st") {
-				Print_Error_Location();
-				printf("Register \"st\" is write-only\n");
-			}
+			else Error_Log("Register ST is write-only.");
 		}
-		else if (Valid_BinaryLiteral(args[1]) || Valid_HexLiteral(args[1])) {
+		else if (args[1].type == TYPE_LITERAL) {
 			/* Load the value <byte literal> into Vx */
-			Word_Output(0x60 | x, Token_Byte(args[1]));
+			Word_Output(0x60 | x, args[1].value);
 		}
-		else {
-			Print_Error_Location();
-			printf("Invalid V register / byte literal \"%s\"\n", args[1].c_str());
-		}
+		else Error_Log("Expected V register or byte literal as second argument.");
 	}
-	else if (args[0] == "i") {
-		if (Label_Exists(args[1]) && Valid_Address(labels[args[1]])) {
-			/* Load <label address> into I */
-			short addr = labels[args[1]];
-			Word_Output(0xA000 | addr);
+	else if (args[0].value == I) {
+		if (args[1].type == TYPE_ADDRESS) {
+			/* Load <address> into I */
+			Word_Output(0xA000 | args[1].value);
 		}
-		else if (Valid_Register_VX(args[1])) {
+		else if (args[1].type == TYPE_REGISTER) {
 			/* Write to memory address I with values from registers V0 to Vx */
-			Word_Output(0xF0 | Char_Hex(args[1][1]), 0x55);
+			EnforceRegisterV(args[1]);
+			Word_Output(0xF0 | args[1].value, 0x55);
 		}
-		else {
-			Print_Error_Location();
-			printf("Invalid V register/label \"%s\"\n", args[1].c_str());
-		}
+		else Error_Log("Expected address or V register as second argument.");
 	}
-	else if (args[0] == "dt") {
-		if (Valid_Register_VX(args[1])) {
-			/* Load value of Vx into DT */
-			Word_Output(0xF0 | Char_Hex(args[1][1]), 0x15);
-		}
-		else {
-			Print_Error_Location();
-			printf("Can only load V register into DT\n");
-		}
+	else if (args[0].value == DT) {
+		/* Load value of Vx into DT */
+		EnforceType(args[1], TYPE_REGISTER);
+		EnforceRegisterV(args[1]);
+		Word_Output(0xF0 | args[1].value, 0x15);
 	}
-	else if (args[0] == "st") {
-		if (Valid_Register_VX(args[1])) {
-			/* Load value of Vx into ST */
-			Word_Output(0xF0 | Char_Hex(args[1][1]), 0x18);
-		}
-		else {
-			Print_Error_Location();
-			printf("Can only load V register into ST\n");
-		}
+	else if (args[0].value == ST) {
+		EnforceType(args[1], TYPE_REGISTER);
+		EnforceRegisterV(args[1]);
+		Word_Output(0xF0 | args[1].value, 0x18);
 	}
 }
 
 Opcode(or) {
 	/* Performs bitwise OR on Vx and Vy, stores the result in Vx */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (!Valid_Register_VX(args[1])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[1].c_str());
-		return;
-	}
-	Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[1][1]) << 4) | 0x01);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	EnforceType(args[1], TYPE_REGISTER);
+	EnforceRegisterV(args[1]);
+	Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x01);
 }
 
 Opcode(and) {
 	/* Performs bitwise AND on Vx and Vy, stores the result in Vx */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (!Valid_Register_VX(args[1])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[1].c_str());
-		return;
-	}
-	Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[1][1]) << 4) | 0x02);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	EnforceType(args[1], TYPE_REGISTER);
+	EnforceRegisterV(args[1]);
+	Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x02);
 }
 
 Opcode(xor) {
 	/* Performs bitwise XOR on Vx and Vy, stores the result in Vx */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (!Valid_Register_VX(args[1])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[1].c_str());
-		return;
-	}
-	Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[1][1]) << 4) | 0x03);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	EnforceType(args[1], TYPE_REGISTER);
+	EnforceRegisterV(args[1]);
+	Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x03);
 }
 
 Opcode(add) {
-	if (!Valid_Register(args[0])) {
-		Print_Error_Location();
-		printf("Invalid register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (Valid_Register_VX(args[0])) {
-		if (Valid_BinaryLiteral(args[1]) || Valid_HexLiteral(args[1])) {
+	EnforceType(args[0], TYPE_REGISTER);
+	if(args[0].value <= VF) {
+		if (args[1].type == TYPE_LITERAL) {
 			/* Set Vx to the value of Vx + <byte literal> */
-			Word_Output(0x70 | Char_Hex(args[0][1]), Token_Byte(args[1]));
+			Word_Output(0x70 | args[0].value, args[1].value);
 		}
-		else if (Valid_Register_VX(args[1])) {
+		else if (args[1].type == TYPE_REGISTER) {
 			/* Set Vx to the value of Vx + Vy. Set VF to 1 if there is a carry, 0 if there is not */
-			Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[1][1]) << 4) | 0x04);
+			EnforceRegisterV(args[1]);
+			Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x04);
 		}
-		else {
-			Print_Error_Location();
-			printf("Invalid V register/byte literal \"%s\"\n", args[1].c_str());
-		}
+		else Error_Log("Expected V register or byte literal as second argument.");
 	}
-	else if (args[0] == "i") {
+	else if(args[0].value == I) {
 		/* Set I to memory address I + Vx */
-		if (Valid_Register_VX(args[1])) {
-			Word_Output(0xF0 | Char_Hex(args[1][1]), 0x1E);
-		}
-		else {
-			Print_Error_Location();
-			printf("Invalid V register \"%s\"\n", args[1].c_str());
-		}
+		EnforceRegisterV(args[1]);
+		Word_Output(0xF | args[1].value, 0x1E);
 	}
-	else {
-		Print_Error_Location();
-		printf("add must be used with V register or I register.\n");
-	}
+	else Error_Log("Expected V register or I register as first argument.");
 }
 
 Opcode(sub) {
 	/* Set Vx to the value of Vx - Vy. Set VF to 0 if there is a borrow, 1 if there is not */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (!Valid_Register_VX(args[1])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[1].c_str());
-		return;
-	}
-	Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[1][1]) << 4) | 0x05);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	EnforceType(args[1], TYPE_REGISTER);
+	EnforceRegisterV(args[1]);
+	Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x05);
 }
 
-/* 
- Some implementations of SHR and SHL take a Vy argument that is the source value, and stores the shifted value into Vx. 
- For now Vx is the source and destination of the value shift.
- @TODO: Add Vy argument handling
-*/
 Opcode(shr) {
-	/* If least-significant bit of Vx is 1, set VF to 1, otherwise 0. Then bitshift Vx once to the right */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	if (args.size() == 2) {
+		EnforceType(args[1], TYPE_REGISTER);
+		EnforceRegisterV(args[1]);
+		/* Store Vy bitshifted right into Vx. Set VF to lsb of Vy */
+		Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x06);
 	}
-	Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[0][1]) << 4) | 0x06);
+	else {
+		/* Bitshift Vx to the right. Set VF to lsb of Vx before shift */
+		Word_Output(0x80 | args[0].value, (args[0].value << 4) | 0x06);
+	}
 }
 Opcode(shl) {
-	/* If most-significant bit of Vx is 1, set VF to 1, otherwise 0. Then bitshift Vx once to the left */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	if (args.size() == 2) {
+		EnforceType(args[1], TYPE_REGISTER);
+		EnforceRegisterV(args[1]);
+		/* Store Vy bitshifted left into Vx. Set VF to lsb of Vy */
+		Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x0E);
 	}
-	Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[0][1]) << 4) | 0x0E);
+	else {
+		/* Bitshift Vx to the left. Set VF to msb of Vx before shift */
+		Word_Output(0x80 | args[0].value, (args[0].value << 4) | 0x0E);
+	}
 }
 
 Opcode(subn) {
 	/* Set Vx to the value of Vy - Vx. Set VF to 0 if there is a borrow, 1 if there is not */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (!Valid_Register_VX(args[1])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[1].c_str());
-		return;
-	}
-	Word_Output(0x80 | Char_Hex(args[0][1]), (Char_Hex(args[1][1]) << 4) | 0x07);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	EnforceType(args[1], TYPE_REGISTER);
+	EnforceRegisterV(args[1]);
+	Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x07);
 }
 
 /*
@@ -323,18 +235,17 @@ Opcode(subn) {
  Regardless, this cannot really be controlled by opcodes.
 */
 Opcode(rand) {
-	/* Set Vx to a random value with the range of 0 to <byte literal> */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	if (args.size() == 2) {
+		/* Set Vx to a random value with the range of 0 to <byte literal> */
+		EnforceType(args[1], TYPE_LITERAL);
+		Word_Output(0xC0 | args[0].value, args[1].value);
 	}
-	if (!Valid_BinaryLiteral(args[1]) && !Valid_HexLiteral(args[1])) {
-		Print_Error_Location();
-		printf("Invalid byte literal \"%s\"\n", args[1].c_str());
-		return;
+	else {
+		/* Set Vx to a random value with the range of 0 to 255 */
+		Word_Output(0xC0 | args[0].value, 0xFF);
 	}
-	Word_Output(0xC0 | Char_Hex(args[0][1]), Token_Byte(args[1]));
 }
 
 Opcode(draw) {
@@ -342,54 +253,36 @@ Opcode(draw) {
 	   Display n-byte sprite starting at the memory address in I. Draw the sprite at coordinates (Vx, Vy).
 	   If the sprite is drawn over any existing pixels, set VF to 1, otherwise 0.
 	*/
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	if (!Valid_Register_VX(args[1])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[1].c_str());
-		return;
-	}
-	if (!Valid_Binary(args[2]) && !Valid_Hex(args[2])) {
-		Print_Error_Location();
-		printf("Invalid nibble literal \"%s\"\n", args[2].c_str());
-		return;
-	}
-	Word_Output(0xD0 | Char_Hex(args[0][1]), (Char_Hex(args[1][1]) << 4) | Token_Nibble(args[2]));
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	EnforceType(args[1], TYPE_REGISTER);
+	EnforceRegisterV(args[1]);
+	EnforceType(args[2], TYPE_NIBBLE);
+	Word_Output(0xD0 | args[0].value, (args[1].value) << 4 | args[2].value);
 }
 
 Opcode(skp) {
 	/* Skip next instruction if the key in Vx is pressed */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	Word_Output(0xE0 | Char_Hex(args[0][1]), 0x9E);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	Word_Output(0xE0 | args[0].value, 0x9E);
 }
 
 Opcode(sknp) {
 	/* Skip next instruction if the key in Vx is NOT pressed */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	Word_Output(0xE0 | Char_Hex(args[0][1]), 0xA1);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	Word_Output(0xE0 | args[0].value, 0xA1);
 }
 
 Opcode(wkp) {
 	/* Halt instruction execution until a key is pressed, then store the key value in Vx */
-	if (!Valid_Register_VX(args[0])) {
-		Print_Error_Location();
-		printf("Invalid V register \"%s\"\n", args[0].c_str());
-		return;
-	}
-	Word_Output(0xF0 | Char_Hex(args[0][1]), 0x0A);
+	EnforceType(args[0], TYPE_REGISTER);
+	EnforceRegisterV(args[0]);
+	Word_Output(0xF0 | args[0].value, 0x0A);
 }
 
 Opcode(db) {
-	Byte_Output(Token_Byte(args[0]));
+	EnforceType(args[0], TYPE_LITERAL);
+	Byte_Output(args[0].value);
 }
