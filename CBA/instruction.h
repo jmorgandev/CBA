@@ -10,33 +10,50 @@ https://en.wikipedia.org/wiki/CHIP-8
 #include "stdafx.h"
 
 #define TYPE_LITERAL  0x00
-#define TYPE_NIBBLE   0x01
-#define TYPE_REGISTER 0x02
-#define TYPE_ADDRESS  0x03
+#define TYPE_REGISTER 0x01
 
+#define LITERAL_4  4
+#define LITERAL_8  8
+#define LITERAL_12 12
+#define LITERAL_16 16
+
+const char* type_names[] = {
+	"literal", "register",
+};
+const char* reg_names[] = {
+	"v0", "v1", "v2", "v3",
+	"v4", "v5", "v6", "v7",
+	"v8", "v9", "va", "vb",
+	"vc", "vd", "ve", "vf",
+	"I", "dt", "st"
+};
 enum RegisterValues {
 	V0, V1, V2, V3,
 	V4, V5, V6, V7,
 	V8, V9, VA, VB,
 	VC, VD, VE, VF,
-	I, DT, ST
+	I, DT, ST,
+	REGISTER_COUNT
 };
 
 struct token {
 	word value;
 	uint type;
-	char text[3];
+	byte bitcount;
 };
 
 typedef void(*op_ptr)(std::vector<token>);
 
 struct instruction {
 	op_ptr callback;
-	int min_args = 0;
-	int max_args = 0;
+	uint min_arg = 0;
+	uint max_arg = 0;
+	uint out_size = 2;
 };
 
 #define Opcode(a) void op_##a(std::vector<token> args)
+
+#define ARG_MAX 3
 
 #define BASIC_SYNTAX \
 	X(cls,  0, 0)\
@@ -59,12 +76,12 @@ struct instruction {
 	X(skp,  1, 1)\
 	X(sknp, 1, 1)\
 	X(wkp,  1, 1)\
-	X(db,   1, 1)
+	X(db,   1, 1, 1)
 
 #define X(a, x, y) Opcode(a);
 BASIC_SYNTAX
 #undef X
 
-extern std::map<std::string, instruction> instruction_map;
+extern std::map<std::string, instruction> instructions;
 
 #endif

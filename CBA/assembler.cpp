@@ -2,6 +2,7 @@
 #include "instruction.h"
 #include <fstream>
 #include <algorithm>
+#include <unordered_map>
 #include "stdafx.h"
 #include "error.h"
 
@@ -13,15 +14,144 @@
 
 #define ROM_EXTENSION ".c8"
 
+#define EnforceValidLabel(a, act) if(!ValidLabelName(a)) {Error_InvalidLabelName(a); act;}
+#define EnforceDirectiveArgs(dir, a, b, act) if(a != b) {Error_DirectiveArgs(dir, b, a); act;}
+#define EnforceUndefinedAlias(ali, act) if(AliasExists(ali)) { Error_AliasDefined(ali##.c_str()); act;}
+
 static char rom_output[MAX_ROMSIZE];
 static uint rom_index = 0;
-static uint line_num  = 1;
+static uint line_number = 1;
 
 static std::fstream source_file;
 static std::fstream binary_file;
 static std::string  bin_file_name;
 
 std::map<std::string, short> labels;
+std::unordered_map<std::string, std::string> aliases;
+
+bool IsComment(std::string str) {
+	return (str[0] == ';');
+}
+
+bool IsAlphaNumeric(char c) {
+	return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+bool IsNumeric(char c) {
+	return c >= '0' && c <= '9';
+}
+bool IsNumeric(std::string str) {
+	for (const char& c : str) {
+		if (!IsNumeric(c)) return false;
+	}
+	return true;
+}
+
+bool IsRegister(std::string str) {
+	for (uint i = 0; i < REGISTER_COUNT; i++)
+		if (str == reg_names[i]) return true;
+	return false;
+}
+uint RegisterValue(std::string str) {
+	for (uint i = 0; i < REGISTER_COUNT; i++) {
+		if (str == reg_names[i]) return i;
+	}
+	return 0;
+}
+
+bool LabelExists(std::string label) {
+	return (labels.find(label) != labels.end());
+}
+
+bool AliasExists(std::string name) {
+	return (aliases.find(name) != aliases.end());
+}
+
+bool ValidBinaryLiteral(std::string str) {
+	if (str.size() != 4 && str.size() != 8) return false;
+	for (const char& c : str)
+		if (c != '0' && c != '1') return false;
+	return true;
+}
+uint GetBinaryValue(std::string str) {
+	uint result = 0;
+	for (const char& c : str)
+		result = (result << 1) + (c == '1') ? 1 : 0;
+	return result;
+}
+
+bool ValidHexLiteral(std::string str) {
+	if ((str.size() > 5 && str.size < 2) || str[0] != '$') return false;
+	for (const char& c : str) {
+		if (c == '$') continue;
+		if ((c < '0' || c > '9') && (c < 'a' || c > 'f')) return false;
+	}
+	return true;
+}
+uint GetHexValue(std::string str) {
+	uint result = 0;
+	for (const char& c : str) {
+		if (c == '$') continue;
+		result = (result << 4) + (c > '9') ? c - ('a' + 0xA) : c - '0';
+	}
+	return result;
+}
+
+static bool ValidLiteral(std::string str) {
+	return (ValidHexLiteral(str) || ValidBinaryLiteral(str));
+}
+
+static bool AllowedLabelCharacter(const char& c) {
+	return (c == '_') || IsAlphaNumeric(c);
+}
+
+static bool ValidLabelName(std::string str) {
+	if (uint i = str.find(':') != std::string::npos) {
+		if (i != str.size() - 1) return false;
+		if (std::find_if_not(str.begin(), str.end(), AllowedLabelCharacter) != str.end()) return false;
+	}
+	else return false;
+	return true;
+}
+
+static bool ValidInstruction(std::string str) {
+	return instructions.find(str) != instructions.end();
+}
+
+std::string TrimSpaces(std::string str) {
+	if (str[0] == ' ') str = str.substr(str.find_first_not_of(' '));
+	for (uint i = 0; i < str.size();) {
+		if (str[i] == ' ' && (i == str.size() - 1 || str[i + i] == ' ' )) str.erase(i);
+		else i++;
+	}
+	return str;
+}
+
+static bool MakeToken(std::string str, token* result) {
+	if (IsRegister(str)) *result = { TYPE_REGISTER, RegisterValue(str), NULL };
+	else if (LabelExists(str)) *result = { TYPE_LITERAL, labels[str], LITERAL_12 };
+	else if (ValidBinaryLiteral(str)) *result = { TYPE_LITERAL, GetBinaryValue(str), str.size() };
+	else if (ValidHexLiteral(str)) *result = { TYPE_LITERAL, GetHexValue(str), str.size() * 4 };
+	else if (AliasExists(str)) return MakeToken(aliases[str], result);
+	else return false;
+	return true;
+}
+
+static std::vector<std::string> StringSplit(std::string str, std::string seperators) {
+	std::vector<std::string> result;
+	while (!str.empty()) {
+		uint i = str.find_first_of(seperators);
+		if (i != std::string::npos) {
+			result.push_back(str.substr(0, i));
+			str = str.substr(i + 1);
+		}
+		else {
+			result.push_back(str);
+			str = "";
+		}
+	}
+	return result;
+}
 
 static std::vector<std::string> Tokenize_Line(std::string line) {
 	std::vector<std::string> result;
@@ -61,7 +191,7 @@ bool Valid_Label(std::string token) {
 }
 
 bool Valid_Instruction(std::string token) {
-	return instruction_map.find(token) != instruction_map.end();
+	return instructions.find(token) != instructions.end();
 }
 
 bool Valid_Hex(char c) {
@@ -114,10 +244,6 @@ byte Token_Nibble(std::string token) {
 byte Char_Hex(char c) {
 	return c - ((c <= '9') ? 48 : 87);
 }
-
-bool Label_Exists(std::string label) {
-	return (labels.find(label) != labels.end());
-}
 bool Valid_Register(std::string token) {
 	if (token.size() == 0 || token.size() > 2) return false;
 	if (token[0] == 'v') return (Valid_Hex(token[1]));
@@ -129,7 +255,7 @@ bool Valid_Register_VX(std::string token) {
 }
 
 void PrintLineNumber() {
-	printf("[Line %i (0x%X)] ", line_num, rom_index + CHIP8_MEMSTART);
+	printf("[Line %i (0x%X)] ", line_number, rom_index + CHIP8_MEMSTART);
 }
 
 
@@ -146,43 +272,45 @@ bool ASM_Begin(std::string path) {
 	return true;
 }
 
-void ASM_ProcessLabels() {
+void ASM_Process() {
+	rom_index = 0;
+	std::string linefeed;
+	while (std::getline(source_file, linefeed)) {
+		if (!linefeed.empty()) {
+			std::transform(linefeed.begin(), linefeed.end(), linefeed.begin(), ::tolower);
+			linefeed = TrimSpaces(linefeed);
+			std::vector<std::string> tokens = StringSplit(linefeed, " ,");
+			
+			if (tokens[0][0] == '.') {
+				//Process directive
+				if (tokens[0] == ".alias") {
+					EnforceDirectiveArgs(".alias", 2, tokens.size() - 1, continue);
+					EnforceUndefinedAlias(tokens[1], continue);
+					aliases[tokens[1]] = tokens[2];
+				}
+			}
+			else if (tokens[0].find(':') != std::string::npos) {
+				//Process label
+				EnforceValidLabel(tokens[0].c_str(), continue);
+				labels[tokens[0]] = rom_index + CHIP8_MEMSTART;
+			}
+			else if (ValidInstruction(tokens[0])) rom_index += instructions[tokens[0]].out_size;
+		}
+		line_number++;
+	}
+}
+
+void ASM_Build() {
 	std::string linefeed;
 	rom_index = 0;
 	while (std::getline(source_file, linefeed)) {
-		if (linefeed.empty()) {
-			line_num++;
-			continue;
+		if (!linefeed.empty()) {
+
 		}
-		std::transform(linefeed.begin(), linefeed.end(), linefeed.begin(), ::tolower);
-		size_t label_end = std::string::npos;
-		for (int i = 0; i < linefeed.size(); i++) {
-			if (linefeed[i] == ':') {
-				if (label_end != std::string::npos) {
-					Print_Error_Location();
-					printf("Invalid label declaration \"%s\"\n", linefeed.substr(0, i).c_str());
-					return;
-				}
-				label_end = i;
-			}
-		}
-		if (label_end != std::string::npos) labels[linefeed.substr(0, label_end)] = rom_index + CHIP8_MEMSTART;
-		else {
-			auto tokens = Tokenize_Line(linefeed);
-			if (!tokens.empty()) {
-				if (Valid_Instruction(tokens[0])) rom_index += 2;
-				else rom_index += 1;
-			}
-		}
-		line_num++;
 	}
-	rom_index = 0;
-	line_num = 1;
-	source_file.clear();
-	source_file.seekg(0, std::fstream::beg);
 }
 
-bool ASM_Build() {
+bool ASM_BuildEX() {
 	std::string linefeed;
 	while (std::getline(source_file, linefeed)) {
 		if (linefeed.empty()) {

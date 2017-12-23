@@ -6,8 +6,8 @@
 extern std::map<std::string, short> labels;
 
 void PrintLineNumber();
+bool LabelExists(std::string label);
 
-bool Label_Exists(std::string label);
 bool Valid_Address(short addr);
 bool Valid_Register(std::string token);
 bool Valid_Register_VX(std::string token);
