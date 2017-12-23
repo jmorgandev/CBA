@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "assembler.h"
+#include "error.h"
 
 #define VERSION "1.1"
 
@@ -16,7 +17,7 @@ int main(int argc, char** args) {
 	}
 
 	if (ASM_Begin(args[1])) {
-		ASM_ProcessLabels();
+		ASM_Process();
 		if (!ASM_Build()) {
 			printf("\nTotal errors: %i\n", error_count);
 			return 1;

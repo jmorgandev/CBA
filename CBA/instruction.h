@@ -17,16 +17,6 @@ https://en.wikipedia.org/wiki/CHIP-8
 #define LITERAL_12 12
 #define LITERAL_16 16
 
-const char* type_names[] = {
-	"literal", "register",
-};
-const char* reg_names[] = {
-	"v0", "v1", "v2", "v3",
-	"v4", "v5", "v6", "v7",
-	"v8", "v9", "va", "vb",
-	"vc", "vd", "ve", "vf",
-	"I", "dt", "st"
-};
 enum RegisterValues {
 	V0, V1, V2, V3,
 	V4, V5, V6, V7,
@@ -39,7 +29,7 @@ enum RegisterValues {
 struct token {
 	word value;
 	uint type;
-	byte bitcount;
+	uint bitcount;
 };
 
 typedef void(*op_ptr)(std::vector<token>);
@@ -76,6 +66,7 @@ struct instruction {
 	X(skp,  1, 1)\
 	X(sknp, 1, 1)\
 	X(wkp,  1, 1)\
+	X(dw,   1, 2)\
 	X(db,   1, 1, 1)
 
 #define X(a, x, y) Opcode(a);

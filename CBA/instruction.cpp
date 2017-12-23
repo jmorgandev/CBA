@@ -7,7 +7,8 @@
 #define EnforceRegister(a, b, act) if(a.value != b) {Error_NeedRegister(b ,a.value); act;}
 #define EnforceRegisterV(a, act) if(a.value > VF) {Error_NeedRegisterV(a.value); act;}
 
-#define EnforceLiteralSize(a, b, act) if(a.bitcount > b) {Error_SizeMismatch(b, a.count); act;}
+#define EnforceSize(a, b, act) if(a.bitcount > b) {Error_SizeMismatch(b, a.bitcount); act;}
+#define EnforceExactSize(a, b, act) if(a.bitcount != b) {Error_SizeMismatch(b, a.bitcount); act;}
 
 #define X(a, x, y) {#a , {op_##a, x, y}},
 std::map<std::string, instruction> instructions = { BASIC_SYNTAX };
@@ -50,6 +51,7 @@ Opcode(se) {
 	byte x = args[0].value;
 	if (args[1].type == TYPE_LITERAL) {
 		/* Skip next instruction if Vx == <byte literal> */
+		EnforceSize(args[1], LITERAL_8, return);
 		Word_Output(0x30 | x, args[1].value);
 	}
 	else if (args[1].type == TYPE_REGISTER) {
@@ -57,7 +59,7 @@ Opcode(se) {
 		byte y = args[1].value;
 		Word_Output(0x50 | x, y << 4);
 	}
-	else Error_Log("Expected V register or byte literal as second argument.");
+	else Error_Log("(Syntax Error): Expected V[0-F] or 8-bit literal as second argument.");
 }
 
 Opcode(sne) {
@@ -67,6 +69,7 @@ Opcode(sne) {
 
 	if (args[1].type == TYPE_LITERAL) {
 		/* Skip next instruction if Vx != <byte literal> */
+		EnforceSize(args[1], LITERAL_8, return);
 		Word_Output(0x40 | x, args[1].value);
 	}
 	else if (args[1].type == TYPE_REGISTER) {
@@ -75,7 +78,7 @@ Opcode(sne) {
 		byte y = args[1].value;
 		Word_Output(0x90 | x, y << 4);
 	}
-	else Error_Log("Expected V register or byte literal as second argument.");
+	else Error_Log("(Syntax Error): Expected V[0-F] or 8-it literal as second argument.");
 }
 
 Opcode(ld) {
@@ -96,17 +99,19 @@ Opcode(ld) {
 				/* Load into registers V0 to Vx values starting from memory address I*/
 				Word_Output(0xF0 | x, 0x65);
 			}
-			else Error_Log("Register ST is write-only.");
+			else Error_Log("(Register Error): ST is write-only.");
 		}
 		else if (args[1].type == TYPE_LITERAL) {
 			/* Load the value <byte literal> into Vx */
+			EnforceSize(args[1], LITERAL_8, return);
 			Word_Output(0x60 | x, args[1].value);
 		}
-		else Error_Log("Expected V register or byte literal as second argument.");
+		else Error_Log("(Syntax Error): Expected V[0-F] or 8-bit literal as second argument.");
 	}
 	else if (args[0].value == I) {
 		if (args[1].type == TYPE_LITERAL) {
 			/* Load <address> into I */
+			EnforceSize(args[1], LITERAL_12, return);
 			Word_Output(0xA000 | args[1].value);
 		}
 		else if (args[1].type == TYPE_REGISTER) {
@@ -114,7 +119,7 @@ Opcode(ld) {
 			EnforceRegisterV(args[1], return);
 			Word_Output(0xF0 | args[1].value, 0x55);
 		}
-		else Error_Log("Expected address or V register as second argument.");
+		else Error_Log("(Syntax Error): Expected V[0-F] or 12-bit literal as second argument.");
 	}
 	else if (args[0].value == DT) {
 		/* Load value of Vx into DT */
@@ -161,6 +166,7 @@ Opcode(add) {
 	if(args[0].value <= VF) {
 		if (args[1].type == TYPE_LITERAL) {
 			/* Set Vx to the value of Vx + <byte literal> */
+			EnforceSize(args[1], LITERAL_8, return);
 			Word_Output(0x70 | args[0].value, args[1].value);
 		}
 		else if (args[1].type == TYPE_REGISTER) {
@@ -168,14 +174,14 @@ Opcode(add) {
 			EnforceRegisterV(args[1], return);
 			Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x04);
 		}
-		else Error_Log("Expected V register or byte literal as second argument.");
+		else Error_Log("(Syntax Error): Expected V[0-F] or 8-bit literal as second argument.");
 	}
 	else if(args[0].value == I) {
 		/* Set I to memory address I + Vx */
 		EnforceRegisterV(args[1], return);
 		Word_Output(0xF | args[1].value, 0x1E);
 	}
-	else Error_Log("Expected V register or I register as first argument.");
+	else Error_Log("(Syntax Error): Expected V[0-F] or I as first argument.");
 }
 
 Opcode(sub) {
@@ -235,6 +241,7 @@ Opcode(rand) {
 	if (args.size() == 2) {
 		/* Set Vx to a random value with the range of 0 to <byte literal> */
 		EnforceType(args[1], TYPE_LITERAL, return);
+		EnforceSize(args[1], LITERAL_8, return);
 		Word_Output(0xC0 | args[0].value, args[1].value);
 	}
 	else {
@@ -252,7 +259,8 @@ Opcode(draw) {
 	EnforceRegisterV(args[0], return);
 	EnforceType(args[1], TYPE_REGISTER, return);
 	EnforceRegisterV(args[1], return);
-	EnforceLiteralSize(args[2], LITERAL_4, return);
+	EnforceType(args[2], TYPE_LITERAL, return);
+	EnforceSize(args[2], LITERAL_4, return);
 	Word_Output(0xD0 | args[0].value, (args[1].value) << 4 | args[2].value);
 }
 
@@ -277,7 +285,22 @@ Opcode(wkp) {
 	Word_Output(0xF0 | args[0].value, 0x0A);
 }
 
+Opcode(dw) {
+	EnforceType(args[0], TYPE_LITERAL, return);
+	if (args.size() == 2) {
+		EnforceType(args[1], TYPE_LITERAL, return);
+		EnforceExactSize(args[0], LITERAL_8, return);
+		EnforceExactSize(args[1], LITERAL_8, return);
+		Word_Output(args[0].value, args[1].value);
+	}
+	else {
+		EnforceSize(args[0], LITERAL_16, return);
+		Word_Output(args[0].value);
+	}
+}
+
 Opcode(db) {
 	EnforceType(args[0], TYPE_LITERAL, return);
+	EnforceSize(args[0], LITERAL_8, return);
 	Byte_Output(args[0].value);
 }
