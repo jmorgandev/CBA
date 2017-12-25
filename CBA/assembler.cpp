@@ -6,22 +6,24 @@
 #include "stdafx.h"
 #include "error.h"
 
-#define CHIP8_MEMSIZE 4096
-#define CHIP8_MEMSTART 512
-#define MAX_ROMSIZE (CHIP8_MEMSIZE - CHIP8_MEMSTART)
-#define INSTRUCTION_SIZE 2
-#define LITERAL_SIZE 1
+#define EnforceValidLabel(a, act)\
+	if(!ValidLabelDefinition(a)) {Error_InvalidLabelName(a); act;}
 
-#define ROM_EXTENSION ".c8"
+#define EnforceDirectiveArgs(dir, a, b, act)\
+	if(a != b) {Error_DirectiveArgs(dir, b, a); act;}
 
-#define EnforceValidLabel(a, act) if(!ValidLabelName(a)) {Error_InvalidLabelName(a); act;}
-#define EnforceDirectiveArgs(dir, a, b, act) if(a != b) {Error_DirectiveArgs(dir, b, a); act;}
-#define EnforceUndefinedAlias(ali, act) if(AliasExists(ali)) { Error_AliasDefined(ali##.c_str()); act;}
+#define EnforceUndefinedAlias(ali, act)\
+	if(AliasExists(ali)) { Error_AliasDefined(ali##.c_str()); act;}
+
+#define EnforceArgCount(inst, count, act)\
+	if(count < instructions[inst].min_arg || count > instructions[inst].max_arg) {\
+		Error_InstructionArgs(inst.c_str(), instructions[inst].min_arg, instructions[inst].max_arg, count); act;}
 
 static char rom_output[MAX_ROMSIZE];
 static uint rom_index = 0;
 static uint line_number = 1;
 static uint byte_overflow = 0;
+static uint source_lines = 0;
 
 static std::fstream source_file;
 static std::fstream binary_file;
@@ -29,6 +31,9 @@ static std::string  bin_file_name;
 
 std::map<std::string, uint> labels;
 std::unordered_map<std::string, std::string> aliases;
+std::unordered_map<uint, std::string> pending_lines;
+
+static uint formatting_width = 0;
 
 /*****************************************/
 /*										 */
@@ -89,16 +94,18 @@ static inline bool ValidLiteral(std::string str) {
 }
 
 static inline bool AllowedLabelCharacter(const char& c) {
-	return (c == '_') || IsAlphaNumeric(c);
+	return (c == '_') || (c == ':') || IsAlphaNumeric(c);
 }
 
-static bool ValidLabelName(std::string str) {
-	if (uint i = str.find(':') != std::string::npos) {
-		if (i != str.size() - 1) return false;
-		if (std::find_if_not(str.begin(), str.end(), AllowedLabelCharacter) != str.end()) return false;
-	}
-	else return false;
-	return true;
+static inline bool ValidLabelName(std::string str) {
+	return (std::find_if_not(str.begin(), str.end(), AllowedLabelCharacter) == str.end());
+}
+static bool ValidLabelDefinition(std::string str) {
+	uint i = str.find(':');
+	if (i == std::string::npos) return false;
+	if (std::count(str.begin(), str.end(), ':') > 1) return false;
+	if (i != str.size() - 1) return false;
+	return ValidLabelName(str);
 }
 
 static inline bool ValidInstruction(std::string str) {
@@ -116,7 +123,7 @@ static uint RegisterValue(std::string str) {
 static uint GetBinaryValue(std::string str) {
 	uint result = 0;
 	for (const char& c : str)
-		result = (result << 1) + (c == '1') ? 1 : 0;
+		result = (result << 1) + ((c == '1') ? 1 : 0);
 	return result;
 }
 
@@ -124,7 +131,7 @@ static uint GetHexValue(std::string str) {
 	uint result = 0;
 	for (const char& c : str) {
 		if (c == '$') continue;
-		result = (result << 4) + (c > '9') ? c - ('a' + 0xA) : c - '0';
+		result = (result << 4) + ((c > '9') ? (c - 'a') + 0xA : c - '0');
 	}
 	return result;
 }
@@ -132,24 +139,44 @@ static uint GetHexValue(std::string str) {
 static std::string TrimSpaces(std::string str) {
 	if (str[0] == ' ') str = str.substr(str.find_first_not_of(' '));
 	for (uint i = 0; i < str.size();) {
-		if (str[i] == ' ' && (i == str.size() - 1 || str[i + i] == ' ' )) str.erase(i);
+		if (str[i] == ' ' && (i == str.size() - 1 || str[i + 1] == ' ')) str.erase(i);
 		else i++;
 	}
 	return str;
 }
 
 static bool MakeToken(std::string str, token* result) {
-	if (IsRegister(str)) *result = { TYPE_REGISTER, RegisterValue(str), NULL };
-	else if (LabelExists(str)) *result = { TYPE_LITERAL, labels[str], LITERAL_12 };
-	else if (ValidBinaryLiteral(str)) *result = { TYPE_LITERAL, GetBinaryValue(str), str.size() };
-	else if (ValidHexLiteral(str)) *result = { TYPE_LITERAL, GetHexValue(str), str.size() * 4 };
+	if (IsRegister(str)) *result = { RegisterValue(str), TYPE_REGISTER, NULL };
+	else if (LabelExists(str)) *result = { labels[str], TYPE_LITERAL, LITERAL_12 };
+	else if (ValidBinaryLiteral(str)) *result = { GetBinaryValue(str), TYPE_LITERAL, str.size() };
+	else if (ValidHexLiteral(str)) *result = { GetHexValue(str), TYPE_LITERAL, (str.size()-1) * 4 };
 	else if (AliasExists(str)) return MakeToken(aliases[str], result);
 	else return false;
 	return true;
 }
 
+std::vector<token> MakeTokens(std::vector<std::string> strings, std::string line) {
+	std::vector<token> result;
+	for (auto it = strings.begin() + 1; it != strings.end(); it++) {
+		token new_token = { 0 };
+		if (MakeToken(*it, &new_token)) result.push_back(new_token);
+		else if (ValidLabelName(*it)) {
+			//Potential unencountered label, resolve in second pass
+			new_token = { 0x000, TYPE_LITERAL, LITERAL_12 };
+			result.push_back(new_token);
+			pending_lines[rom_index] = line;
+		}
+		else {
+			Error_InvalidToken(it->c_str());
+			continue;
+		}
+	}
+	return result;
+}
+
 static std::vector<std::string> StringSplit(std::string str, std::string seperators) {
 	std::vector<std::string> result;
+	str = str.substr(str.find_first_not_of(seperators));
 	while (!str.empty()) {
 		uint i = str.find_first_of(seperators);
 		if (i != std::string::npos) {
@@ -165,9 +192,8 @@ static std::vector<std::string> StringSplit(std::string str, std::string seperat
 }
 
 void PrintLineNumber() {
-	printf("[Line %i (0x%X)] ", line_number, rom_index + CHIP8_MEMSTART);
+	printf("Line %*i: ", formatting_width, line_number, rom_index + CHIP8_MEMSTART);
 }
-
 
 /*****************************************/
 /*										 */
@@ -191,27 +217,39 @@ void Word_Output(byte upper, byte lower) {
 	else byte_overflow += 2;
 }
 
-bool ASM_Begin(std::string path) {
+void ASM_Begin(std::string path) {
 	std::memset(rom_output, NULL, MAX_ROMSIZE);
 
 	source_file.open(path, std::fstream::in);
 	if (!source_file.is_open()) {
-		printf("Could not open source file: \"%s\"\n", path.c_str());
-		return false;
+		Error_NoSourceFile(path.c_str());
+		return;
 	}
+
+	std::string temp;
+	while (std::getline(source_file, temp))
+		source_lines++;
+	source_file.clear();
+	source_file.seekg(0, std::fstream::beg);
+
+	formatting_width = (source_lines > 0) ? (uint)log10((double)source_lines) + 1 : 1;
+
 	size_t ext = path.find_last_of('.');
 	bin_file_name = path.substr(0, ext) + ROM_EXTENSION;
-	return true;
+
+	printf("Assembling %s...\n\n", path.substr(0, ext).c_str());
+
+	ASM_FirstPass();
 }
 
-void ASM_Process() {
+void ASM_FirstPass() {
+	line_number = 1;
 	rom_index = 0;
 	std::string linefeed;
 	while (std::getline(source_file, linefeed)) {
 		if (!linefeed.empty()) {
 			std::transform(linefeed.begin(), linefeed.end(), linefeed.begin(), ::tolower);
-			linefeed = TrimSpaces(linefeed);
-			std::vector<std::string> tokens = StringSplit(linefeed, " ,");
+			std::vector<std::string> tokens = StringSplit(linefeed, " ,\t");
 
 			if (tokens[0][0] == '.') {
 				//Process directive
@@ -220,57 +258,63 @@ void ASM_Process() {
 					EnforceUndefinedAlias(tokens[1], continue);
 					aliases[tokens[1]] = tokens[2];
 				}
+				else Error_InvalidDirective(tokens[0].c_str());
 			}
 			else if (tokens[0].find(':') != std::string::npos) {
 				//Process label
 				EnforceValidLabel(tokens[0].c_str(), continue);
-				labels[tokens[0]] = rom_index + CHIP8_MEMSTART;
+				std::string name = tokens[0].substr(0, tokens[0].size() - 1);
+				labels[name] = rom_index + CHIP8_MEMSTART;
 			}
-			else if (ValidInstruction(tokens[0])) rom_index += instructions[tokens[0]].out_size;
+			//else if (ValidInstruction(tokens[0])) rom_index += instructions[tokens[0]].out_size;
+			else if (ValidInstruction(tokens[0])) {
+				std::vector<token> valid_args = MakeTokens(tokens, linefeed);
+				EnforceArgCount(tokens[0], valid_args.size(), continue);
+				instructions[tokens[0]].callback(valid_args);
+			}
 			else Error_UnknownIdentifier(tokens[0].c_str());
 		}
 		line_number++;
 	}
+
+	if (error_count == 0) ASM_SecondPass();
 }
 
-bool ASM_Build() {
-	std::string linefeed;
-	rom_index = 0;
+void ASM_SecondPass() {
+	uint temp = rom_index;
+
+	source_file.clear();
+	source_file.seekg(0, std::fstream::beg);
 	line_number = 1;
-	while (std::getline(source_file, linefeed)) {
-		if (!linefeed.empty()) {
-			std::transform(linefeed.begin(), linefeed.end(), linefeed.begin(), ::tolower);
-			linefeed = TrimSpaces(linefeed);
-			std::vector<std::string> tokens = StringSplit(linefeed, " ,");
-
-			if (ValidInstruction(tokens[0])) {
-				std::vector<token> instruction_args;
-				for (auto it = tokens.begin() + 1; it != tokens.end(); it++) {
-					token new_token = { 0 };
-					if (MakeToken(*it, &new_token)) instruction_args.push_back(new_token);
-					else Error_InvalidToken(it->c_str());
-				}
-			}
-		}
+	
+	for (auto it = pending_lines.begin(); it != pending_lines.end(); it++) {
+		rom_index = it->first;
+		std::vector<std::string> tokens = StringSplit(it->second, " ,\t");
+		std::vector<token> valid_args = MakeTokens(tokens, it->second);
+		EnforceArgCount(tokens[0], valid_args.size(), continue);
+		instructions[tokens[0]].callback(valid_args);
 	}
+	rom_index = temp;
 
-	if (error_count != 0) return false;
+	if(error_count == 0) ASM_WriteToFile();
+}
+
+void ASM_WriteToFile() {
 	if (byte_overflow != 0) {
+		uint overflow = MAX_ROMSIZE + byte_overflow;
 		printf("ROM size limit reached: %d/%d bytes (0x%X/0x%X).\n",
-			MAX_ROMSIZE + byte_overflow, MAX_ROMSIZE, MAX_ROMSIZE + byte_overflow, MAX_ROMSIZE);
+			overflow, MAX_ROMSIZE, overflow, MAX_ROMSIZE);
 		error_count++;
-		return false;
+		return;
 	}
 
-	binary_file.open(bin_file_name, std::fstream::in | std::fstream::binary | std::fstream::trunc);
+	binary_file.open(bin_file_name, std::fstream::out | std::fstream::binary | std::fstream::trunc);
 	if (!binary_file.is_open()) {
-		binary_file.open(bin_file_name, std::fstream::out | std::fstream::binary);
-		if (!binary_file.is_open()) {
-			printf("Could not create/open binary file: \"%s\"\n", bin_file_name.c_str());
-			return false;
-		}
+		printf("Could not create/open binary file: \"%s\"\n", bin_file_name.c_str());
+		return;
 	}
 	binary_file.write(rom_output, rom_index);
-	printf("Wrote %i bytes to %s (%i bytes remaining)\n", rom_index, bin_file_name.c_str(), MAX_ROMSIZE - rom_index);
-	return true;
+	binary_file.flush();
+	printf("Wrote %i bytes to %s.\n", rom_index, bin_file_name.c_str());
+	printf("%d bytes remaining (0x%X/0xFFF).\n", MAX_ROMSIZE - rom_index, rom_index + CHIP8_MEMSTART);
 }

@@ -27,7 +27,7 @@ enum RegisterValues {
 };
 
 struct token {
-	word value;
+	uint value;
 	uint type;
 	uint bitcount;
 };
@@ -38,7 +38,6 @@ struct instruction {
 	op_ptr callback;
 	uint min_arg = 0;
 	uint max_arg = 0;
-	uint out_size = 2;
 };
 
 #define Opcode(a) void op_##a(std::vector<token> args)
@@ -67,7 +66,7 @@ struct instruction {
 	X(sknp, 1, 1)\
 	X(wkp,  1, 1)\
 	X(dw,   1, 2)\
-	X(db,   1, 1, 1)
+	X(db,   1, 1)
 
 #define X(a, x, y) Opcode(a);
 BASIC_SYNTAX

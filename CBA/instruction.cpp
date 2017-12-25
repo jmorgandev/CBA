@@ -59,7 +59,7 @@ Opcode(se) {
 		byte y = args[1].value;
 		Word_Output(0x50 | x, y << 4);
 	}
-	else Error_Log("(Syntax Error): Expected V[0-F] or 8-bit literal as second argument.");
+	else Error_Log("Expected V[0-F] or 8-bit literal as second argument");
 }
 
 Opcode(sne) {
@@ -78,7 +78,7 @@ Opcode(sne) {
 		byte y = args[1].value;
 		Word_Output(0x90 | x, y << 4);
 	}
-	else Error_Log("(Syntax Error): Expected V[0-F] or 8-it literal as second argument.");
+	else Error_Log("Expected V[0-F] or 8-it literal as second argument");
 }
 
 Opcode(ld) {
@@ -99,14 +99,14 @@ Opcode(ld) {
 				/* Load into registers V0 to Vx values starting from memory address I*/
 				Word_Output(0xF0 | x, 0x65);
 			}
-			else Error_Log("(Register Error): ST is write-only.");
+			else Error_Log("ST is write-only");
 		}
 		else if (args[1].type == TYPE_LITERAL) {
 			/* Load the value <byte literal> into Vx */
 			EnforceSize(args[1], LITERAL_8, return);
 			Word_Output(0x60 | x, args[1].value);
 		}
-		else Error_Log("(Syntax Error): Expected V[0-F] or 8-bit literal as second argument.");
+		else Error_Log("Expected V[0-F] or 8-bit literal as second argument");
 	}
 	else if (args[0].value == I) {
 		if (args[1].type == TYPE_LITERAL) {
@@ -119,7 +119,7 @@ Opcode(ld) {
 			EnforceRegisterV(args[1], return);
 			Word_Output(0xF0 | args[1].value, 0x55);
 		}
-		else Error_Log("(Syntax Error): Expected V[0-F] or 12-bit literal as second argument.");
+		else Error_Log("Expected V[0-F] or 12-bit literal as second argument");
 	}
 	else if (args[0].value == DT) {
 		/* Load value of Vx into DT */
@@ -174,14 +174,14 @@ Opcode(add) {
 			EnforceRegisterV(args[1], return);
 			Word_Output(0x80 | args[0].value, (args[1].value << 4) | 0x04);
 		}
-		else Error_Log("(Syntax Error): Expected V[0-F] or 8-bit literal as second argument.");
+		else Error_Log("Expected V[0-F] or 8-bit literal as second argument");
 	}
 	else if(args[0].value == I) {
 		/* Set I to memory address I + Vx */
 		EnforceRegisterV(args[1], return);
 		Word_Output(0xF | args[1].value, 0x1E);
 	}
-	else Error_Log("(Syntax Error): Expected V[0-F] or I as first argument.");
+	else Error_Log("Expected V[0-F] or I as first argument");
 }
 
 Opcode(sub) {

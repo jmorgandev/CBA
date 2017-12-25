@@ -1,0 +1,38 @@
+.alias px v3
+.alias py v4
+
+main:
+	rand px,00011111
+	rand py,$F
+	ld i,person
+	draw px py $8
+
+loop:
+	draw px py $8
+	ld v0,$5
+	sknp v0
+	add py $FF
+	ld v0 $8
+	sknp v0
+	add py $1
+	ld v0 $7
+	sknp v0
+	add px $FF
+	ld v0 $9
+	sknp v0
+	add px $1
+	draw px py $8
+loop2:
+	ld vf dt
+	se vf $0
+	jp loop2
+
+	ld vf $3
+	ld dt vf
+	jp loop
+
+person:
+	dw $7070
+	dw $2070
+	dw $A820
+	dw $5050
