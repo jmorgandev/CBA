@@ -147,3 +147,10 @@ Name:   LD <Vx> I
 Desc:   Read registers V0 through Vx in memory starting at location I.
 Opcode: Fx65
 __________________________________
+Name:	DB <NN>
+Desc:	Declares a byte literal.
+Opcode: nn
+__________________________________
+Name:	DW <NN> <NN>
+Desc:	Declares a word literal.
+Opcode: nnnn

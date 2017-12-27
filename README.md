@@ -14,6 +14,6 @@ If assembly is successful, CBA returns 0. If any errors were encountered, CBA re
 
 All asm mnemonics can be found in LANGUAGE.txt
 
-Last compiled: 3rd December 2017
+Last compiled: 25th December 2017
 
-Compiled using Visual Studio 2017 (version 15.4.0)
+Compiled using Visual Studio 2017 (version 15.5.2)
