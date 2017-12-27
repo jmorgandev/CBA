@@ -41,7 +41,7 @@ static uint formatting_width = 0;
 /*                                       */
 /*****************************************/
 static inline bool IsComment(std::string str) {
-	return (str[0] == '#');
+	return (str[0] == COMMENT_SYM);
 }
 
 static inline bool IsAlphaNumeric(char c) {
@@ -81,9 +81,10 @@ static bool ValidBinaryLiteral(std::string str) {
 }
 
 static bool ValidHexLiteral(std::string str) {
-	if ((str.size() > 5 && str.size() < 2) || str[0] != '$') return false;
+	if (str[0] != '$' && str.substr(0, 2) != "0x") return false;
+	str = (str[0] != '$') ? str.substr(1) : str.substr(2);
+	if (str.empty() || str.size() > 4) return false;
 	for (const char& c : str) {
-		if (c == '$') continue;
 		if ((c < '0' || c > '9') && (c < 'a' || c > 'f')) return false;
 	}
 	return true;
@@ -129,8 +130,8 @@ static uint GetBinaryValue(std::string str) {
 
 static uint GetHexValue(std::string str) {
 	uint result = 0;
+	str = (str[0] == '$') ? str.substr(1) : str.substr(2);
 	for (const char& c : str) {
-		if (c == '$') continue;
 		result = (result << 4) + ((c > '9') ? (c - 'a') + 0xA : c - '0');
 	}
 	return result;
@@ -317,6 +318,6 @@ void ASM_WriteToFile() {
 	}
 	binary_file.write(rom_output, rom_index);
 	binary_file.flush();
-	printf("Wrote %i bytes to %s.\n", rom_index, bin_file_name.c_str());
+	printf("Wrote %d bytes to %s.\n", rom_index, bin_file_name.c_str());
 	printf("%d bytes remaining (0x%X/0xFFF).\n", MAX_ROMSIZE - rom_index, rom_index + CHIP8_MEMSTART);
 }
