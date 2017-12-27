@@ -41,7 +41,7 @@ static uint formatting_width = 0;
 /*                                       */
 /*****************************************/
 static inline bool IsComment(std::string str) {
-	return (str[0] == ';');
+	return (str[0] == '#');
 }
 
 static inline bool IsAlphaNumeric(char c) {
@@ -159,7 +159,9 @@ std::vector<token> MakeTokens(std::vector<std::string> strings, std::string line
 	std::vector<token> result;
 	for (auto it = strings.begin() + 1; it != strings.end(); it++) {
 		token new_token = { 0 };
-		if (MakeToken(*it, &new_token)) result.push_back(new_token);
+		if (IsComment(*it)) break;
+		if (MakeToken(*it, &new_token))
+			result.push_back(new_token);
 		else if (ValidLabelName(*it)) {
 			//Potential unencountered label, resolve in second pass
 			new_token = { 0x000, TYPE_LITERAL, LITERAL_12 };
@@ -272,7 +274,7 @@ void ASM_FirstPass() {
 				EnforceArgCount(tokens[0], valid_args.size(), continue);
 				instructions[tokens[0]].callback(valid_args);
 			}
-			else Error_UnknownIdentifier(tokens[0].c_str());
+			else if(!IsComment(tokens[0])) Error_UnknownIdentifier(tokens[0].c_str());
 		}
 		line_number++;
 	}

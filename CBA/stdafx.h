@@ -19,4 +19,6 @@ typedef unsigned short word;
 
 #define ROM_EXTENSION ".c8"
 
+#define COMMENT_SYM '#'
+
 #endif
