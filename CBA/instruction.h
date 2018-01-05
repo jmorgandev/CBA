@@ -40,6 +40,12 @@ struct instruction {
 	uint max_arg = 0;
 };
 
+struct opcode {
+	op_ptr callback;
+	uint min_arg = 0;
+	uint max_arg = 0;
+};
+
 #define Opcode(a) void op_##a(std::vector<token> args)
 
 #define ARG_MAX 3
