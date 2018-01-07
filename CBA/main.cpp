@@ -36,8 +36,8 @@ int main(int argc, char** args) {
 	}
 	
 	ASM_Begin(args[1]);
-	if (error_count != 0) {
-		printf("\nTotal Errors: %d\n", error_count);
+	if (!error_list.empty()) {
+		printf("\nTotal Errors: %i\n", error_list.size());
 		getchar();
 		return 1;
 	}

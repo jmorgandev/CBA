@@ -116,14 +116,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="assembler.cpp" />
+    <ClCompile Include="enforce.cpp" />
     <ClCompile Include="error.cpp" />
-    <ClCompile Include="instruction.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="opcode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="assembler.h" />
+    <ClInclude Include="enforce.h" />
     <ClInclude Include="error.h" />
-    <ClInclude Include="instruction.h" />
+    <ClInclude Include="opcode.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

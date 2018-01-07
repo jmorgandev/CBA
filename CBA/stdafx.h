@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <list>
 
 typedef unsigned char byte;
 typedef unsigned int uint;

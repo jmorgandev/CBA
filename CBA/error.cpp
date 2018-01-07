@@ -1,8 +1,14 @@
 #include "error.h"
 #include "assembler.h"
-#include "instruction.h"
+#include <sstream>
 
-uint error_count = 0;
+uint format_width;
+std::string error_file;
+
+static bool hold_error = false;
+static std::string held_error;
+
+std::list<std::string> error_list;
 
 const char* type_names[] = {
 	"literal", "register",
@@ -15,99 +21,43 @@ const char* reg_names[] = {
 	"i", "dt", "st"
 };
 
-static inline void BeginError() {
-	PrintLineNumber();
-	error_count++;
+void HoldNextError() {
+	hold_error = true;
+	held_error.clear();
 }
-static inline void FinishError() {
-	printf("\n\n");
-}
-
-void Error_Log(const char* s) {
-	BeginError();
-	printf("%s", s);
-	FinishError();
+void CommitHeldError() {
+	hold_error = false;
+	error_list.push_back(held_error);
 }
 
-void Error_TypeMismatch(uint type_expected, uint type_found) {
-	BeginError();
-	printf("Expected %s, found %s.", type_names[type_expected], type_names[type_found]);
-	FinishError();
+std::string GetErrorLocation() {
+	char buffer[256];
+	if (error_file != file_trace.back()) {
+		error_file = file_trace.back();
+		sprintf_s(buffer, "(%s)", error_file.c_str());
+	}
+	uint len = strlen(buffer);
+	sprintf_s(buffer + len, 256 - len, "  Line%*i", format_width, line_number);
+	return std::string(buffer);
 }
 
-void Error_NeedRegister(uint reg_expected, uint reg_found) {
-	BeginError();
-	printf("Expected %s, found %s.", reg_names[reg_expected], reg_names[reg_found]);
-	FinishError();
+void PushError(const char* fmt, ...) {
+	va_list args;
+	char buffer[512];
+	va_start(args, fmt);
+	uint len = vsprintf_s(buffer, fmt, args);
+	va_end(args);
+	std::string complete_error = GetErrorLocation() + std::string(buffer) + "\n\n";
+
+	if (hold_error && held_error.empty()) {
+		held_error = complete_error;
+	}
+	else error_list.push_back(complete_error);
 }
 
-void Error_NeedRegisterV(uint reg_found) {
-	BeginError();
-	printf("Expected V[0-F], found %s.", reg_names[reg_found]);
-	FinishError();
-}
-
-void Error_SizeMismatch(uint size_expected, uint size_found) {
-	BeginError();
-	printf("Expected %d-bit literal, found %d-bit literal.", size_expected, size_found);
-	FinishError();
-}
-
-void Error_InvalidLabelName(const char* name) {
-	BeginError();
-	printf("Invalid label name \"%s\".", name);
-	FinishError();
-}
-
-void Error_DirectiveArgs(const char* dir, uint args_expected, uint args_found) {
-	BeginError();
-	printf("%s expected %d arguments, found %d.", dir, args_expected, args_found);
-	FinishError();
-}
-
-void Error_AliasDefined(const char* name) {
-	BeginError();
-	printf("alias \"%s\" is already defined.", name);
-	FinishError();
-}
-
-void Error_UnknownIdentifier(const char* name) {
-	BeginError();
-	printf("Unknown identifier \"%s\".", name);
-	FinishError();
-}
-
-void Error_InvalidToken(const char* tkn) {
-	BeginError();
-	printf("Invalid instruction/literal \"%s\".", tkn);
-	FinishError();
-}
-
-void Error_InvalidDirective(const char* dir) {
-	BeginError();
-	printf("Unrecognised directive \"%s\".", dir);
-	FinishError();
-}
-
-void Error_InstructionArgs(const char* name, uint min, uint max, uint args) {
-	BeginError();
-	if (min == max) printf("%s expected %d arguments, found %d.", name, min, args);
-	else printf("%s expected %d-%d arguments, found %d.", name, min, max, args);
-	FinishError();
-}
-
-void Error_NoSourceFile(const char* file) {
-	BeginError();
-	printf("Could not find source file \"%s\".", file);
-	FinishError();
-}
-
-void Error_FileOutputFail(const char* file) {
-	BeginError();
-	printf("Could not create binary \"%s\"(Is this file already open?).", file);
-	FinishError();
-}
-
-void Error_SizeLimitReached() {
-
+void PrintAllErrors() {
+	for (const auto& err : error_list) {
+		printf(err.c_str());
+	}
+	printf("Total Errors: %i\n", error_list.size());
 }

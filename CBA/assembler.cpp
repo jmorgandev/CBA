@@ -1,5 +1,5 @@
 #include "assembler.h"
-#include "instruction.h"
+#include "opcode.h"
 #include <fstream>
 #include <algorithm>
 #include <unordered_map>
@@ -19,9 +19,11 @@
 	if(count < instructions[inst].min_arg || count > instructions[inst].max_arg) {\
 		Error_InstructionArgs(inst.c_str(), instructions[inst].min_arg, instructions[inst].max_arg, count); act;}
 
+uint line_number = 1;
+std::vector<std::string> file_trace;
+
 static char rom_output[MAX_ROMSIZE];
 static uint rom_index = 0;
-static uint line_number = 1;
 static uint byte_overflow = 0;
 static uint source_lines = 0;
 
@@ -110,7 +112,7 @@ static bool ValidLabelDefinition(std::string str) {
 }
 
 static inline bool ValidInstruction(std::string str) {
-	return instructions.find(str) != instructions.end();
+	return opcode_list.find(str) != opcode_list.end();
 }
 
 
@@ -170,7 +172,7 @@ std::vector<token> MakeTokens(std::vector<std::string> strings, std::string line
 			pending_lines[rom_index] = line;
 		}
 		else {
-			Error_InvalidToken(it->c_str());
+			PushError("Invalid opcode/literal \"%s\"", it->c_str());
 			continue;
 		}
 	}
@@ -225,7 +227,7 @@ void ASM_Begin(std::string path) {
 
 	source_file.open(path, std::fstream::in);
 	if (!source_file.is_open()) {
-		Error_NoSourceFile(path.c_str());
+		printf("File \"%s\" could not be opened/found.", path.c_str());
 		return;
 	}
 
@@ -235,7 +237,7 @@ void ASM_Begin(std::string path) {
 	source_file.clear();
 	source_file.seekg(0, std::fstream::beg);
 
-	formatting_width = (source_lines > 0) ? (uint)log10((double)source_lines) + 1 : 1;
+	format_width = (source_lines > 0) ? (uint)log10((double)source_lines) + 1 : 1;
 
 	size_t ext = path.find_last_of('.');
 	bin_file_name = path.substr(0, ext) + ROM_EXTENSION;
@@ -256,31 +258,44 @@ void ASM_FirstPass() {
 
 			if (tokens[0][0] == '.') {
 				//Process directive
-				if (tokens[0] == ".alias") {
-					EnforceDirectiveArgs(".alias", 2, tokens.size() - 1, continue);
-					EnforceUndefinedAlias(tokens[1], continue);
-					aliases[tokens[1]] = tokens[2];
+				if (tokens.size() - 1 != 2) {
+					PushError("%s expected %i args, found %i", tokens[0].c_str(), 2, tokens.size() - 1);
+					continue;
 				}
-				else Error_InvalidDirective(tokens[0].c_str());
+				if (tokens[0] == ".alias") {
+					if (AliasExists(tokens[1]))
+						PushError("Alias %s is already defined.", tokens[1].c_str());
+					else aliases[tokens[1]] = tokens[2];
+				}
+				else PushError("Unrecognised directive \"%s\".", tokens[0].c_str());
 			}
 			else if (tokens[0].find(':') != std::string::npos) {
 				//Process label
-				EnforceValidLabel(tokens[0].c_str(), continue);
+				if (!ValidLabelDefinition(tokens[0])) {
+					PushError("Invalid label name \"%s\"", tokens[0].c_str());
+					continue;
+				}
 				std::string name = tokens[0].substr(0, tokens[0].size() - 1);
 				labels[name] = rom_index + CHIP8_MEMSTART;
 			}
-			//else if (ValidInstruction(tokens[0])) rom_index += instructions[tokens[0]].out_size;
 			else if (ValidInstruction(tokens[0])) {
 				std::vector<token> valid_args = MakeTokens(tokens, linefeed);
-				EnforceArgCount(tokens[0], valid_args.size(), continue);
-				instructions[tokens[0]].callback(valid_args);
+				opcode& op = opcode_list[tokens[0]];
+				if (op.min > op.max && valid_args.size() != op.min) {
+					PushError("%s expected %i args, found %i.", tokens[0].c_str(), op.min, valid_args.size());
+				}
+				else if (valid_args.size() < op.min || valid_args.size() > op.max) {
+					PushError("%s expected %i-%i args, found %i.", tokens[0].c_str(), op.min, op.max, valid_args.size());
+				}
+				else op.callback(valid_args);
 			}
-			else if(!IsComment(tokens[0])) Error_UnknownIdentifier(tokens[0].c_str());
+			else if (!IsComment(tokens[0]))
+				PushError("Unknown identifier \"%s\"", tokens[0]);
 		}
 		line_number++;
 	}
 
-	if (error_count == 0) ASM_SecondPass();
+	if (error_list.empty()) ASM_SecondPass();
 }
 
 void ASM_SecondPass() {
@@ -294,20 +309,25 @@ void ASM_SecondPass() {
 		rom_index = it->first;
 		std::vector<std::string> tokens = StringSplit(it->second, " ,\t");
 		std::vector<token> valid_args = MakeTokens(tokens, it->second);
-		EnforceArgCount(tokens[0], valid_args.size(), continue);
-		instructions[tokens[0]].callback(valid_args);
+		opcode& op = opcode_list[tokens[0]];
+		if (op.min > op.max && valid_args.size() != op.min) {
+			PushError("%s expected %i args, found %i.", tokens[0].c_str(), op.min, valid_args.size());
+		}
+		else if (valid_args.size() < op.min || valid_args.size() > op.max) {
+			PushError("%s expected %i-%i args, found %i.", tokens[0].c_str(), op.min, op.max, valid_args.size());
+		}
+		else op.callback(valid_args);
 	}
 	rom_index = temp;
 
-	if(error_count == 0) ASM_WriteToFile();
+	if(error_list.empty() == 0) ASM_WriteToFile();
 }
 
 void ASM_WriteToFile() {
 	if (byte_overflow != 0) {
 		uint overflow = MAX_ROMSIZE + byte_overflow;
-		printf("ROM size limit reached: %d/%d bytes (0x%X/0x%X).\n",
-			overflow, MAX_ROMSIZE, overflow, MAX_ROMSIZE);
-		error_count++;
+		PushError("ROM size limit reached: %i/%i bytes (%#X/%#X)",
+				  overflow, MAX_ROMSIZE, overflow, MAX_ROMSIZE);
 		return;
 	}
 
@@ -318,6 +338,15 @@ void ASM_WriteToFile() {
 	}
 	binary_file.write(rom_output, rom_index);
 	binary_file.flush();
-	printf("Wrote %d bytes to %s.\n", rom_index, bin_file_name.c_str());
-	printf("%d bytes remaining (0x%X/0xFFF).\n", MAX_ROMSIZE - rom_index, rom_index + CHIP8_MEMSTART);
+	printf("Wrote %i bytes to %s.\n", rom_index, bin_file_name.c_str());
+	printf("%i bytes remaining (%#X/%#X).\n",
+			MAX_ROMSIZE - rom_index, rom_index + CHIP8_MEMSTART, MAX_ROMSIZE);
+}
+
+void ASM_Compile(const char* path) {
+	std::ifstream file(path);
+	if (!file.is_open()) {
+
+	}
+	
 }
