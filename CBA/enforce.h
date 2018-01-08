@@ -4,7 +4,7 @@
 #include "stdafx.h"
 #include "error.h"
 struct token;
-
+struct opcode;
 bool EnforceType(token tkn, uint type);
 bool EnforceRegister(token tkn, uint reg);
 bool EnforceRegisterV(token tkn);

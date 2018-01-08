@@ -18,7 +18,7 @@ bool EnforceRegisterV(token tkn) {
 }
 bool EnforceBitcount(token tkn, uint bits) {
 	if (tkn.bitcount <= bits) return true;
-	PushError("Expected %i-bit literal or less, found %i-bit literal.", bits, tkn.bitcount);
+	PushError("Expected %i-bit literal, found %i-bit literal.", bits, tkn.bitcount);
 	return false;
 }
 bool EnforceBitcountEx(token tkn, uint bits) {

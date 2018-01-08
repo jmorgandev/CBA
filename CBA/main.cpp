@@ -5,8 +5,8 @@
 //@TODO: More helpful comments, before I forget any of this...
 
 //@PLANNED FEATURES
-// .include
-// .sprite (??)
+// .include @DONE
+// .sprite (??) @DONE replaced with dbs
 // multi-instruction opcodes (e.g. jnz might expand into 3 basic opcodes)
 // .lock <reg> (So multi-instruction opcodes won't touch a particular register)
 // .unlock <reg> (Allow multi-instruction opcodes to modify a register)
@@ -27,7 +27,7 @@ int main(int argc, char** args) {
 	printf("Chip-8 Basic Assembler (CBA) Version %s\n\n", CBA_VERSION);
 
 	argc = 2;
-	args[1] = "newTest.cba";
+	args[1] = "main.cba";
 
 	if (argc != 2) {
 		printf("Use source file as first argument to assemble.\n");
@@ -37,7 +37,7 @@ int main(int argc, char** args) {
 	
 	ASM_Begin(args[1]);
 	if (!error_list.empty()) {
-		printf("\nTotal Errors: %i\n", error_list.size());
+		PrintAllErrors();
 		getchar();
 		return 1;
 	}

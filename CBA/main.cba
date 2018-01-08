@@ -1,0 +1,10 @@
+.alias px v0
+.alias py v1
+
+.include thing.cba
+
+main:
+    ld px 0x20
+    ld py 0x10
+    ld i sprite
+    draw px py 5

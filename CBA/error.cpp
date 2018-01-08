@@ -31,13 +31,13 @@ void CommitHeldError() {
 }
 
 std::string GetErrorLocation() {
-	char buffer[256];
+	char buffer[256] = { 0 };
 	if (error_file != file_trace.back()) {
 		error_file = file_trace.back();
-		sprintf_s(buffer, "(%s)", error_file.c_str());
+		sprintf_s(buffer, "\n(%s)\n", error_file.c_str());
 	}
 	uint len = strlen(buffer);
-	sprintf_s(buffer + len, 256 - len, "  Line%*i", format_width, line_number);
+	sprintf_s(buffer + len, 256 - len, "   Line %*i: ", format_width, line_number);
 	return std::string(buffer);
 }
 
@@ -47,7 +47,7 @@ void PushError(const char* fmt, ...) {
 	va_start(args, fmt);
 	uint len = vsprintf_s(buffer, fmt, args);
 	va_end(args);
-	std::string complete_error = GetErrorLocation() + std::string(buffer) + "\n\n";
+	std::string complete_error = GetErrorLocation() + std::string(buffer) + "\n";
 
 	if (hold_error && held_error.empty()) {
 		held_error = complete_error;
@@ -59,5 +59,5 @@ void PrintAllErrors() {
 	for (const auto& err : error_list) {
 		printf(err.c_str());
 	}
-	printf("Total Errors: %i\n", error_list.size());
+	printf("\nTotal Errors: %i\n", error_list.size());
 }

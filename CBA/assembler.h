@@ -7,7 +7,7 @@ extern uint line_number;
 extern std::vector<std::string> file_trace;
 
 void ASM_Begin(std::string path);
-void ASM_FirstPass();
+void ASM_FirstPass(std::ifstream& file);
 void ASM_SecondPass();
 void ASM_WriteToFile();
 
