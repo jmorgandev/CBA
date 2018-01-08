@@ -1,3 +1,11 @@
+=========  Directive List =========
+Name:	.alias <name> <text>
+Desc:	Whenever <name> is typed, it is replaced with <text>
+__________________________________
+Name:	.include <file>
+Desc:	Includes the .cba file as if it was typed where the include
+	statement was.
+
 ========== Mnemonic List ==========
 Notes: 
 	- Vx / Vy refer to V registers between V0 - VF.
@@ -139,6 +147,14 @@ Name:   ADD I <Vx>
 Desc:   Set I to the result of I + Vx.
 Opcode: Fx1E
 __________________________________
+Name:   FNT <Vx>
+Desc:   Set I to the address of font sprite corresponding to hex value of Vx.
+Opcode: Fx29
+__________________________________
+Name:   BCD <Vx>
+Desc:   Store binary-coded decimal value of Vx at address I, I+1, and I+2.
+Opcode: Fx33
+__________________________________
 Name:   LD I <Vx>
 Desc:   Store registers V0 through Vx in memory starting at location I.
 Opcode: Fx55
@@ -154,3 +170,7 @@ __________________________________
 Name:	DW <NN> <NN>
 Desc:	Declares a word literal.
 Opcode: nnnn
+__________________________________
+Name:	DBS <NN> ...
+Desc:	Declares multiple byte literals.
+Opcode: nn ...

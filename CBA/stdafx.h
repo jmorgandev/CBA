@@ -10,7 +10,7 @@ typedef unsigned char byte;
 typedef unsigned int uint;
 typedef unsigned short word;
 
-#define CBA_VERSION "1.1"
+#define CBA_VERSION "1.2"
 
 #define CHIP8_MEMSIZE 4096
 #define CHIP8_MEMSTART 512

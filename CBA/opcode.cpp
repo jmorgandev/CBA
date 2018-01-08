@@ -240,6 +240,18 @@ Opcode(wkp) {
 		!EnforceRegisterV(args[0])) return;
 	Word_Output(0xF0 | args[0].value, 0x0A);
 }
+Opcode(fnt) {
+	/* Set I to the address of font sprite corresponding to hex value of Vx */
+	if (!EnforceType(args[0], TYPE_REGISTER) ||
+		!EnforceRegisterV(args[0])) return;
+	Word_Output(0xF0 | args[0].value, 0x29);
+}
+Opcode(bcd) {
+	/* Store binary-coded decimal value of Vx at address I, I+1, and I+2 */
+	if (!EnforceType(args[0], TYPE_REGISTER) ||
+		!EnforceRegisterV(args[0])) return;
+	Word_Output(0xF0 | args[0].value, 0x33);
+}
 Opcode(dw) {
 	if (!EnforceType(args[0], TYPE_LITERAL)) return;
 	if (args.size() == 2) {

@@ -63,6 +63,8 @@ struct opcode {
 	X(skp,  1   )\
 	X(sknp, 1   )\
 	X(wkp,  1   )\
+	X(fnt,  1   )\
+	X(bcd,	1	)\
 	X(dw,   1, 2)\
 	X(db,   1   )\
 	X(dbs,  1, 99)
