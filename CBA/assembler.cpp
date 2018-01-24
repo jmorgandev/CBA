@@ -209,7 +209,7 @@ static std::vector<std::string> StringSplit(std::string str, std::string seperat
 }
 
 void PrintLineNumber() {
-	printf("Line %*i: ", formatting_width, line_number, rom_index + CHIP8_MEMSTART);
+	printf("Line %*i: ", formatting_width, line_number);
 }
 
 /*****************************************/
